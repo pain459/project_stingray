@@ -1,1 +1,1 @@
-"""Stingray api package."""
+"""Stingray API package."""

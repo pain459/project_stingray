@@ -15,6 +15,7 @@ import threading
 import time
 from pathlib import Path
 
+from stingray.api.server import ApiState, start_api_server
 from stingray.core.config import AppConfig, load_config
 from stingray.core.errors import ConfigError
 from stingray.core.models import SensorId
@@ -81,6 +82,10 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     scheduler.start()
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
+    # Start the dashboard API server (unauthenticated, internal use).
+    api_state = ApiState(scheduler, db_path)
+    api_server = start_api_server(config.api.host, config.api.port, api_state)
+
     def _handle_signal(signum: int, _frame: object) -> None:
         log.info("received signal %d, shutting down", signum)
         stop_event.set()
@@ -104,6 +109,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
                 last_retention = now
     finally:
         stop_event.set()
+        api_server.shutdown()
         drain_thread.join(timeout=5)
         scheduler.stop(timeout=10)
         flushed = writer.flush()
@@ -145,6 +151,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Override the database path from config",
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Override the API port from config",
+    )
     args, _unknown = parser.parse_known_args(argv)
 
     logging.basicConfig(
@@ -164,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.db is not None:
         config.database = config.database.model_copy(update={"path": str(args.db)})
+    if args.port is not None:
+        config.api = config.api.model_copy(update={"port": args.port})
 
     # When no config file is found, no sensors are enabled. Running the full
     # scheduler loop with zero sensors is a no-op that blocks forever, so in
