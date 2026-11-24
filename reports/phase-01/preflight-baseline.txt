@@ -1,0 +1,20 @@
+===== STINGRAY PREFLIGHT =====
+Timestamp: 2026-11-24T21:24:55+05:30
+OS: Debian GNU/Linux 13 (trixie)
+Kernel: 6.18.60+rpt-rpi-v8
+Arch: aarch64
+Model: Raspberry Pi 4 Model B Rev 1.1
+
+OK   os               Debian GNU/Linux 13 (trixie) / 6.18.60+rpt-rpi-v8 / aarch64 / Raspberry Pi 4 Model B Rev 1.1
+OK   memory           total=1.8Gi
+OK   storage          root avail=220G use=3%
+FAIL i2c_devices      no /dev/i2c-* nodes found (I2C not enabled in config.txt?)
+WARN spi_devices      no /dev/spidev* nodes found (SPI not enabled or no display attached)
+OK   throttling       throttled=0x0 (no throttling)
+OK   temperature      temp=48.7C
+OK   systemd          no failed services
+OK   uptime           up 4 hours, 52 minutes
+OK   user_groups      user has i2c, spi, gpio groups
+
+Result: FAIL
+  - i2c_devices: no /dev/i2c-* nodes found (I2C not enabled in config.txt?)

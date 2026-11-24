@@ -1,0 +1,30 @@
+# Hardware configuration: pin mapping, bus assignments, power notes.
+# Verify against docs/hardware/wiring.md and actual component datasheets.
+
+gpio:
+  i2c_sda: 2      # BCM GPIO
+  i2c_scl: 3
+  spi_mosi: 10
+  spi_miso: 9
+  spi_sclk: 11
+  spi_ce0: 8
+  tft_dc: 25      # candidate - verify against actual display board
+  tft_reset: 24   # candidate - verify against actual display board
+
+i2c:
+  bus: 1
+  devices:
+    sht45: 0x44
+    scd4x: 0x62
+    sgp41: 0x59
+    sps30: 0x69
+
+spi:
+  device: /dev/spidev0.0
+  max_speed_hz: 16000000
+  mode: 0
+
+power:
+  # DFR0918 is a GPIO terminal breakout, NOT an independent regulator.
+  # Do not power 5V signals into Pi GPIO (3.3V logic).
+  notes: "Verify all power rails against exact breakout datasheet."

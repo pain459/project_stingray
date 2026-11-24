@@ -1,0 +1,1 @@
+"""Stingray hardware package."""

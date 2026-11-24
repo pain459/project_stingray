@@ -1,0 +1,20 @@
+# Sensor-specific configuration
+# I2C bus numbers and addresses. Verify against actual hardware before use.
+
+i2c_bus: 1
+
+sensors:
+  sht45:
+    address: 0x44
+    precision: high      # high | low
+  scd4x:
+    address: 0x62
+    mode: periodic       # periodic | periodic_auto_low_power
+  sgp41:
+    address: 0x59
+    gas_index:
+      enabled: true
+      state_file: /var/lib/stingray/gas_index_state.json
+  sps30:
+    address: 0x69
+    measurement_mode: standard   # standard | high_accuracy

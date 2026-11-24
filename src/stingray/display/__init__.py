@@ -1,0 +1,1 @@
+"""Stingray display package."""
