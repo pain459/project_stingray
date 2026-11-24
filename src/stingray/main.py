@@ -30,3 +30,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+import os  # deliberate unused import for CI negative test
