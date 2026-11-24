@@ -1,0 +1,54 @@
+# Stingray application configuration (Pi production)
+# Data persists across reboots via SQLite on SD card.
+
+mode: mock            # mock | hardware
+
+api:
+  host: 0.0.0.0
+  port: 8081          # 8080 is occupied by another service on this Pi
+
+database:
+  path: /home/ravik/stingray-data/stingray.db
+  retention_days: 30
+  wal_mode: true
+
+sensors:
+  sht45:
+    enabled: true
+    i2c_bus: 1
+    address: 0x44
+    cadence_seconds: 5
+  scd4x:
+    enabled: true
+    i2c_bus: 1
+    address: 0x62
+    cadence_seconds: 5
+  sgp41:
+    enabled: true
+    i2c_bus: 1
+    address: 0x59
+    cadence_seconds: 1
+  sps30:
+    enabled: true
+    i2c_bus: 1
+    address: 0x69
+    cadence_seconds: 10
+
+display:
+  enabled: false
+  spi_device: /dev/spidev0.0
+  rotation: 0
+  refresh_seconds: 2
+
+alerts:
+  telegram:
+    enabled: false
+    cooldown_seconds: 300
+  thresholds:
+    pm2_5_ug_m3: 35.0
+    co2_ppm: 1000
+    voc_index: 100
+
+logging:
+  level: INFO
+  file: /tmp/stingray.log
