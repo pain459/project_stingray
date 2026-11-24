@@ -1,436 +1,369 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Stingray — Air Quality Monitor</title>
 <style>
-  :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --panel2: #1c2128;
-    --border: #30363d;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --good: #3fb950;
-    --warn: #d29922;
-    --bad: #f85149;
-    --accent: #58a6ff;
-    --accent2: #bc8cff;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 14px;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 22px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  header h1 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-  }
-  header h1 .dot { color: var(--accent); }
-  .status {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .status .pill {
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-  }
-  .status .pill b { color: var(--text); font-weight: 600; }
-  .live-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--good);
-    display: inline-block;
-    margin-right: 5px;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  main { padding: 20px 22px 40px; max-width: 1400px; margin: 0 auto; }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 14px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    position: relative;
-    overflow: hidden;
-  }
-  .card .sensor-name {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    margin-bottom: 4px;
-  }
-  .card .metric-name {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-  .card .value {
-    font-size: 30px;
-    font-weight: 700;
-    line-height: 1.1;
-    font-variant-numeric: tabular-nums;
-  }
-  .card .unit {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 400;
-    margin-left: 4px;
-  }
-  .card .meta {
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--muted);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .card .quality {
-    padding: 1px 7px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-  .quality.good { background: rgba(63,185,80,0.15); color: var(--good); }
-  .quality.estimated { background: rgba(210,153,34,0.15); color: var(--warn); }
-  .quality.stale { background: rgba(210,153,34,0.15); color: var(--warn); }
-  .quality.invalid { background: rgba(248,81,73,0.15); color: var(--bad); }
-  .card canvas {
-    width: 100%;
-    height: 36px;
-    margin-top: 10px;
-    display: block;
-  }
-  .card .state-badge {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .state-ready { background: rgba(63,185,80,0.15); color: var(--good); }
-  .state-degraded { background: rgba(210,153,34,0.15); color: var(--warn); }
-  .state-failed, .state-disconnected { background: rgba(248,81,73,0.15); color: var(--bad); }
-  .state-initializing, .state-stale { background: rgba(139,148,158,0.15); color: var(--muted); }
-  .section-title {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    margin: 26px 0 12px;
-    font-weight: 600;
-  }
-  .health-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
-  }
-  .health-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-  }
-  .health-card .hname {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  .health-card .hrow {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    padding: 3px 0;
-    font-variant-numeric: tabular-nums;
-  }
-  .health-card .hrow span:first-child { color: var(--muted); }
-  .footer {
-    margin-top: 30px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 11px;
-  }
+*{box-sizing:border-box}
+:root{
+  --bg:#f2f4f7;--card:#fff;--text:#202124;--sec:#667085;
+  --border:#e6e8eb;--accent:#137333;--status:#e6f4ea;--soft:#f7f8fa;
+  --good:#137333;--warn:#b06000;--bad:#c5221f;
+}
+[data-theme=dark]{
+  --bg:#101214;--card:#1b1e22;--text:#f1f3f4;--sec:#aeb4bb;
+  --border:#30343a;--accent:#81c995;--status:#183522;--soft:#15181c;
+  --good:#81c995;--warn:#f2b84b;--bad:#f28b82;
+}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+.container{max-width:1050px;margin:auto;padding:16px}
+.header,.hero,.section,.card{background:var(--card);border-radius:16px;box-shadow:0 2px 8px #0002}
+.header{padding:20px;margin-bottom:16px;position:relative}
+.header h1{margin:0;font-size:24px}.header p{margin:6px 0 0;color:var(--sec);font-size:13px}
+#theme{position:absolute;right:16px;top:16px;border:0;border-radius:50%;width:40px;height:40px;background:var(--bg);color:var(--text);font-size:20px;cursor:pointer}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:1px;overflow:hidden;margin-bottom:16px;background:var(--border)}
+.hero-cell{background:var(--card);text-align:center;padding:24px}
+.hero-label{color:var(--sec);font-size:14px}
+.hero-value{font-size:58px;font-weight:750;line-height:1.05;margin:7px 0}
+.unit{color:var(--sec);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.card{padding:18px}
+.title{font-size:14px;color:var(--sec)}
+.value{font-size:26px;font-weight:650;margin-top:3px}
+.section{padding:20px;margin-bottom:16px}
+.section h2{margin:0 0 14px;font-size:18px}
+.section-note{color:var(--sec);font-size:12px;margin:-7px 0 12px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.stat{text-align:center;background:var(--soft);border-radius:10px;padding:14px}
+.statv{font-size:22px;font-weight:650;margin-top:4px}
+.chart{width:100%;height:310px;display:block}
+.row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--border)}
+.row:last-child{border:0}
+.label{color:var(--sec)}
+.status{padding:4px 9px;border-radius:20px;background:var(--status);color:var(--accent);font-size:12px;font-weight:600}
+.status.good{background:var(--status);color:var(--good)}
+.status.warn{background:#fff3e0;color:var(--warn)}
+.status.bad{background:#fce8e6;color:var(--bad)}
+.api-note{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--sec);overflow-wrap:anywhere}
+.selector-label{font-size:12px;color:var(--sec);margin:12px 0 6px}
+.selector{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.selector button{border:1px solid var(--border);border-radius:9px;padding:7px 11px;background:var(--soft);color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.selector button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.history-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:16px 0 2px}
+.history-title{font-size:16px;font-weight:650}
+.history-meta{font-size:12px;color:var(--sec);text-align:right}
+@media(max-width:650px){
+  .hero,.grid3,.stats{grid-template-columns:1fr}.hero-value{font-size:50px}.chart{height:260px}
+  .history-head{flex-direction:column;align-items:flex-start}
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>Stingray <span class="dot">·</span> Air Quality Monitor</h1>
-  <div class="status">
-    <span class="pill"><span class="live-dot"></span><b>Live</b></span>
-    <span class="pill">Uptime <b id="uptime">–</b></span>
-    <span class="pill">Readings <b id="total">–</b></span>
-    <span class="pill">Updated <b id="updated">–</b></span>
+<div class="container">
+
+<div class="header">
+  <button id="theme" onclick="toggleTheme()">🌙</button>
+  <h1>🏠 Air Quality Monitor</h1>
+  <p id="dt">Loading device status...</p>
+</div>
+
+<div class="hero">
+  <div class="hero-cell"><div class="hero-label">PM2.5</div><div class="hero-value" id="p25">--</div><div class="unit">µg/m³</div></div>
+  <div class="hero-cell"><div class="hero-label">CO₂</div><div class="hero-value" id="co2">--</div><div class="unit">ppm</div></div>
+</div>
+
+<div class="grid3">
+  <div class="card"><div class="title">PM1.0</div><div class="value" id="p1">--</div><div class="unit">µg/m³</div></div>
+  <div class="card"><div class="title">PM10</div><div class="value" id="p10">--</div><div class="unit">µg/m³</div></div>
+  <div class="card"><div class="title">PM4.0</div><div class="value" id="p4">--</div><div class="unit">µg/m³</div></div>
+</div>
+
+<div class="grid3">
+  <div class="card"><div class="title">SHT45 temperature</div><div class="value" id="temp">--</div><div class="unit">°C</div></div>
+  <div class="card"><div class="title">SHT45 humidity</div><div class="value" id="hum">--</div><div class="unit">%RH</div></div>
+  <div class="card"><div class="title">VOC Index</div><div class="value" id="voc">--</div><div class="unit" id="vocstate">--</div></div>
+</div>
+
+<div class="section">
+  <h2>Gas quality — SGP41</h2>
+  <div class="stats">
+    <div class="stat"><div class="title">VOC Index</div><div class="statv" id="voc2">--</div><div class="unit" id="vocstate2">--</div></div>
+    <div class="stat"><div class="title">NOx Index</div><div class="statv" id="nox">--</div><div class="unit" id="noxstate">--</div></div>
+    <div class="stat"><div class="title">VOC raw</div><div class="statv" id="vocraw">--</div><div class="unit">counts</div></div>
   </div>
-</header>
-<main>
-  <div class="section-title">Live readings</div>
-  <div class="grid" id="cards"></div>
+  <div class="row"><span class="label">VOC trend</span><span id="voctrend">--</span></div>
+  <div class="row"><span class="label">NOx trend</span><span id="noxtrend">--</span></div>
+  <div class="row"><span class="label">NOx raw</span><span id="noxraw">--</span></div>
+</div>
 
-  <div class="section-title">Scheduler health</div>
-  <div class="health-grid" id="health"></div>
+<div class="section">
+  <h2>Environmental history</h2>
+  <div class="section-note">Time-range history from the SQLite database. Select a metric and range to view trends.</div>
 
-  <div class="footer">
-    Stingray · mock mode · data refreshes every 2s · internal dashboard
+  <div class="selector-label">Metric</div>
+  <div class="selector" id="metricSelector">
+    <button data-metric="pm2_5_ug_m3" onclick="selectMetric('pm2_5_ug_m3')">PM2.5</button>
+    <button data-metric="pm10_ug_m3" onclick="selectMetric('pm10_ug_m3')">PM10</button>
+    <button data-metric="pm1_ug_m3" onclick="selectMetric('pm1_ug_m3')">PM1</button>
+    <button data-metric="pm4_ug_m3" onclick="selectMetric('pm4_ug_m3')">PM4</button>
+    <button data-metric="co2_ppm" onclick="selectMetric('co2_ppm')">CO₂</button>
+    <button data-metric="temperature_c" onclick="selectMetric('temperature_c')">Temperature</button>
+    <button data-metric="relative_humidity_percent" onclick="selectMetric('relative_humidity_percent')">Humidity</button>
+    <button data-metric="voc_index" onclick="selectMetric('voc_index')">VOC</button>
+    <button data-metric="nox_index" onclick="selectMetric('nox_index')">NOx</button>
   </div>
-</main>
 
+  <div class="selector-label">Range</div>
+  <div class="selector" id="rangeSelector">
+    <button data-hours="1" onclick="selectRange(1)">1h</button>
+    <button data-hours="6" onclick="selectRange(6)">6h</button>
+    <button data-hours="24" class="active" onclick="selectRange(24)">24h</button>
+    <button data-hours="168" onclick="selectRange(168)">7d</button>
+    <button data-hours="720" onclick="selectRange(720)">30d</button>
+  </div>
+
+  <div class="history-head">
+    <div class="history-title" id="historyTitle">PM2.5 — last 24 hours</div>
+    <div class="history-meta" id="historyMeta">Loading history...</div>
+  </div>
+  <canvas id="historyChart" class="chart"></canvas>
+
+  <div class="stats" style="margin-top:14px;margin-bottom:0">
+    <div class="stat"><div class="title">Minimum</div><div class="statv" id="hmin">--</div><div class="unit" id="hminunit"></div></div>
+    <div class="stat"><div class="title">Average</div><div class="statv" id="havg">--</div><div class="unit" id="havgunit"></div></div>
+    <div class="stat"><div class="title">Maximum</div><div class="statv" id="hmax">--</div><div class="unit" id="hmaxunit"></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Particle counts</h2>
+  <div class="row"><span class="label">PM1 count</span><span id="n1">--</span></div>
+  <div class="row"><span class="label">PM2.5 count</span><span id="n25">--</span></div>
+  <div class="row"><span class="label">PM4 count</span><span id="n4">--</span></div>
+  <div class="row"><span class="label">PM10 count</span><span id="n10">--</span></div>
+</div>
+
+<div class="section">
+  <h2>System</h2>
+  <div class="row"><span class="label">SPS30</span><span id="spsstatus" class="status">--</span></div>
+  <div class="row"><span class="label">SCD4X</span><span id="scdstatus" class="status">--</span></div>
+  <div class="row"><span class="label">SHT45</span><span id="shtstatus" class="status">--</span></div>
+  <div class="row"><span class="label">SGP41</span><span id="sgpstatus" class="status">--</span></div>
+  <div class="row"><span class="label">Uptime</span><span id="up">--</span></div>
+  <div class="row"><span class="label">Total readings</span><span id="total">--</span></div>
+  <div class="row"><span class="label">Mode</span><span id="mode">--</span></div>
+</div>
+
+<div class="section">
+  <h2>API cadence</h2>
+  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history</div>
+</div>
+
+</div>
 <script>
-const METRIC_LABELS = {
-  pm1_ug_m3: "PM1",
-  pm2_5_ug_m3: "PM2.5",
-  pm4_ug_m3: "PM4",
-  pm10_ug_m3: "PM10",
-  pm1_num_m3: "PM1 count",
-  pm2_5_num_m3: "PM2.5 count",
-  pm4_num_m3: "PM4 count",
-  pm10_num_m3: "PM10 count",
-  co2_ppm: "CO₂",
-  temperature_c: "Temperature",
-  relative_humidity_percent: "Humidity",
-  voc_index: "VOC index",
-  nox_index: "NOx index",
-  voc_raw: "VOC raw",
-  nox_raw: "NOx raw",
+const $=id=>document.getElementById(id);
+
+const METRIC_META={
+  pm1:{label:'PM1.0',unit:'µg/m³',decimals:1},
+  pm25:{label:'PM2.5',unit:'µg/m³',decimals:1},
+  pm4:{label:'PM4.0',unit:'µg/m³',decimals:1},
+  pm10:{label:'PM10',unit:'µg/m³',decimals:1},
+  co2:{label:'CO₂',unit:'ppm',decimals:0},
+  temperature:{label:'Temperature',unit:'°C',decimals:1},
+  humidity:{label:'Humidity',unit:'%RH',decimals:1},
+  voc:{label:'VOC Index',unit:'Index',decimals:0},
+  nox:{label:'NOx Index',unit:'Index',decimals:0}
 };
-const SENSOR_LABELS = {
-  sht45: "SHT45 · Temp/RH",
-  scd4x: "SCD4X · CO₂",
-  sgp41: "SGP41 · VOC/NOx",
-  sps30: "SPS30 · Particulates",
-};
-const SENSOR_ORDER = ["sht45", "scd4x", "sgp41", "sps30"];
-const METRIC_ORDER = [
-  "temperature_c", "relative_humidity_percent", "co2_ppm",
-  "voc_index", "nox_index", "voc_raw", "nox_raw",
-  "pm2_5_ug_m3", "pm1_ug_m3", "pm4_ug_m3", "pm10_ug_m3",
-  "pm2_5_num_m3", "pm1_num_m3", "pm4_num_m3", "pm10_num_m3",
-];
 
-// Per-metric sparkline history (value + timestamp)
-const sparkData = {}; // key: sensor:metric -> [{t, v}]
-const SPARK_MAX = 60;
+const HIST={metric:'pm2_5_ug_m3',hours:24,samples:[],label:'PM2.5',unit:'µg/m³',decimals:1,stats:null,lastLoad:0,error:'',requestSeq:0};
 
-function fmtTime(iso) {
-  if (!iso) return "–";
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour12: false });
-}
-function fmtUptime(s) {
-  if (s == null) return "–";
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
-}
-function fmtVal(v) {
-  if (v == null) return "–";
-  if (Math.abs(v) >= 1000) return v.toFixed(0);
-  if (Math.abs(v) >= 100) return v.toFixed(1);
-  return v.toFixed(2);
+function toggleTheme(){
+  const h=document.documentElement;
+  const dark=h.getAttribute('data-theme')==='dark';
+  h.setAttribute('data-theme',dark?'':'dark');
+  $('theme').textContent=dark?'🌙':'☀️';
+  drawHistory();
 }
 
-function drawSpark(canvas, points) {
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
-  const h = canvas.height = 36 * (window.devicePixelRatio || 1);
-  ctx.clearRect(0, 0, w, h);
-  if (!points || points.length < 2) return;
-  const vals = points.map(p => p.v);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const range = (max - min) || 1;
+function fmtVal(v,dec){
+  if(v==null||isNaN(v))return'--';
+  return v.toFixed(dec);
+}
+
+function fmtUptime(s){
+  if(s==null)return'--';
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);
+  if(h>0)return h+'d '+m+'h';
+  if(m>0)return m+'h '+sec+'m';
+  return sec+'s';
+}
+
+function drawHistory(){
+  const canvas=$('historyChart');
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.width=canvas.offsetWidth*dpr;
+  const h=canvas.height=310*dpr;
+  ctx.clearRect(0,0,w,h);
+  const pts=HIST.samples;
+  if(!pts||pts.length<2){
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--sec')||'#667085';
+    ctx.font='14px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText(HIST.error||'No data yet',w/2,h/2);
+    return;
+  }
+  const vals=pts.map(p=>p[1]);
+  const min=Math.min(...vals),max=Math.max(...vals);
+  const range=(max-min)||1;
+  const pad=10*dpr;
+  // Grid lines
+  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--border')||'#e6e8eb';
+  ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad+(h-2*pad)*(i/4);
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(w-pad,y);ctx.stroke();
+  }
+  // Line
   ctx.beginPath();
-  points.forEach((p, i) => {
-    const x = (i / (points.length - 1)) * w;
-    const y = h - ((p.v - min) / range) * (h - 4) - 2;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  pts.forEach((p,i)=>{
+    const x=pad+(w-2*pad)*(i/(pts.length-1));
+    const y=h-pad-(h-2*pad)*((p[1]-min)/range);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   });
-  ctx.strokeStyle = "#58a6ff";
-  ctx.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#137333';
+  ctx.lineWidth=2*dpr;
   ctx.stroke();
-  // fill
-  ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
-  ctx.closePath();
-  ctx.fillStyle = "rgba(88,166,255,0.08)";
+  // Fill
+  ctx.lineTo(w-pad,h-pad);ctx.lineTo(pad,h-pad);ctx.closePath();
+  ctx.fillStyle='rgba(19,115,51,0.08)';
   ctx.fill();
 }
 
-function cardKey(sensor, metric) { return sensor + ":" + metric; }
-
-async function fetchJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(url + " -> " + r.status);
-  return r.json();
+function updateHistoryControls(){
+  document.querySelectorAll('#metricSelector button').forEach(b=>{
+    b.classList.toggle('active',b.dataset.metric===HIST.metric);
+  });
+  document.querySelectorAll('#rangeSelector button').forEach(b=>{
+    b.classList.toggle('active',Number(b.dataset.hours)===HIST.hours);
+  });
+  const meta=METRIC_META[HIST.metric]||{label:HIST.metric,unit:'',decimals:1};
+  HIST.label=meta.label;HIST.unit=meta.unit;HIST.decimals=meta.decimals;
+  const rangeLabel=HIST.hours<=1?HIST.hours+' hour':HIST.hours<24?HIST.hours+' hours':HIST.hours<168?Math.round(HIST.hours/24)+' days':Math.round(HIST.hours/24)+' days';
+  $('historyTitle').textContent=HIST.label+' — last '+rangeLabel;
 }
 
-async function refresh() {
-  try {
-    const [live, health] = await Promise.all([
-      fetchJSON("/api/live"),
-      fetchJSON("/api/health"),
-    ]);
+function updateHistoryStats(){
+  const s=HIST.stats;
+  if(!s){$('hmin').textContent='--';$('havg').textContent='--';$('hmax').textContent='--';return;}
+  $('hmin').textContent=fmtVal(s.min,HIST.decimals);
+  $('havg').textContent=fmtVal(s.avg,HIST.decimals);
+  $('hmax').textContent=fmtVal(s.max,HIST.decimals);
+  $('hminunit').textContent=HIST.unit;$('havgunit').textContent=HIST.unit;$('hmaxunit').textContent=HIST.unit;
+}
 
-    // Header
-    document.getElementById("uptime").textContent = fmtUptime(health.uptime_seconds);
-    document.getElementById("total").textContent = live.total;
-    document.getElementById("updated").textContent = fmtTime(health.time);
-
-    // Build a map of current live readings
-    const liveMap = {};
-    for (const row of live.live) {
-      liveMap[cardKey(row.sensor, row.metric)] = row;
-    }
-
-    // Determine which cards to show: union of live readings and known sensors
-    const cardsEl = document.getElementById("cards");
-    const existing = new Map();
-    for (const child of cardsEl.children) {
-      existing.set(child.dataset.key, child);
-    }
-
-    // Collect all (sensor, metric) pairs present in live data
-    const pairs = [];
-    for (const row of live.live) pairs.push([row.sensor, row.metric]);
-    // Sort by sensor order then metric order
-    pairs.sort((a, b) => {
-      const so = SENSOR_ORDER.indexOf(a[0]) - SENSOR_ORDER.indexOf(b[0]);
-      if (so !== 0) return so;
-      return METRIC_ORDER.indexOf(a[1]) - METRIC_ORDER.indexOf(b[1]);
-    });
-
-    const seen = new Set();
-    for (const [sensor, metric] of pairs) {
-      const key = cardKey(sensor, metric);
-      seen.add(key);
-      const row = liveMap[key];
-      let card = existing.get(key);
-      if (!card) {
-        card = document.createElement("div");
-        card.className = "card";
-        card.dataset.key = key;
-        card.innerHTML = `
-          <div class="sensor-name">${SENSOR_LABELS[sensor] || sensor}</div>
-          <div class="metric-name">${METRIC_LABELS[metric] || metric}</div>
-          <div class="value"><span class="v">–</span><span class="unit"></span></div>
-          <div class="meta"><span class="ts">–</span><span class="quality good">good</span></div>
-          <canvas></canvas>
-        `;
-        cardsEl.appendChild(card);
-        existing.set(key, card);
-      }
-      // Update values
-      card.querySelector(".v").textContent = fmtVal(row.value);
-      card.querySelector(".unit").textContent = row.unit;
-      card.querySelector(".ts").textContent = fmtTime(row.observed_at);
-      const q = card.querySelector(".quality");
-      q.textContent = row.quality;
-      q.className = "quality " + row.quality;
-
-      // Sensor state badge
-      const h = live.health[sensor];
-      let badge = card.querySelector(".state-badge");
-      if (h) {
-        if (!badge) {
-          badge = document.createElement("span");
-          badge.className = "state-badge";
-          card.appendChild(badge);
-        }
-        badge.textContent = h.state;
-        badge.className = "state-badge state-" + h.state;
-      }
-
-      // Sparkline data
-      const sparkKey = key;
-      if (!sparkData[sparkKey]) sparkData[sparkKey] = [];
-      const arr = sparkData[sparkKey];
-      // Only push if the timestamp is newer than the last
-      const last = arr.length ? arr[arr.length - 1] : null;
-      if (!last || row.observed_at > last.t) {
-        arr.push({ t: row.observed_at, v: row.value });
-        if (arr.length > SPARK_MAX) arr.shift();
-      }
-      drawSpark(card.querySelector("canvas"), arr);
-    }
-
-    // Remove cards that are no longer present
-    for (const [key, card] of existing) {
-      if (!seen.has(key)) {
-        card.remove();
-        existing.delete(key);
-      }
-    }
-
-    // Health section
-    const healthEl = document.getElementById("health");
-    healthEl.innerHTML = "";
-    for (const sensor of Object.keys(health.stats)) {
-      const s = health.stats[sensor];
-      const div = document.createElement("div");
-      div.className = "health-card";
-      div.innerHTML = `
-        <div class="hname">${SENSOR_LABELS[sensor] || sensor}</div>
-        <div class="hrow"><span>Reads OK</span><span>${s.reads_ok}</span></div>
-        <div class="hrow"><span>Reads failed</span><span>${s.reads_failed}</span></div>
-        <div class="hrow"><span>Measurements</span><span>${s.measurements}</span></div>
-        <div class="hrow"><span>Last error</span><span>${s.last_error || "–"}</span></div>
-      `;
-      healthEl.appendChild(div);
-    }
-  } catch (e) {
-    console.error("refresh failed", e);
+async function loadHistory(){
+  HIST.requestSeq++;
+  const seq=HIST.requestSeq;
+  try{
+    const r=await fetch('/api/history?metric='+HIST.metric+'&hours='+HIST.hours,{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(seq!==HIST.requestSeq)return;
+    HIST.samples=d.samples||[];
+    HIST.stats=d.stats||null;
+    HIST.error='';
+    updateHistoryStats();drawHistory();
+    $('historyMeta').textContent=d.returned+' samples · '+(d.hours||HIST.hours)+'h range';
+  }catch(e){
+    if(seq!==HIST.requestSeq)return;
+    HIST.error=e.message;
+    $('historyMeta').textContent='History unavailable: '+e.message;
+    drawHistory();
   }
 }
 
-refresh();
-setInterval(refresh, 2000);
-window.addEventListener("resize", () => {
-  // Redraw sparklines on resize
-  document.querySelectorAll(".card canvas").forEach(c => {
-    const key = c.closest(".card").dataset.key;
-    if (sparkData[key]) drawSpark(c, sparkData[key]);
-  });
-});
+function selectMetric(metric){
+  HIST.metric=metric;HIST.samples=[];HIST.stats=null;HIST.error='';
+  updateHistoryControls();updateHistoryStats();drawHistory();loadHistory();
+}
+
+function selectRange(hours){
+  HIST.hours=Number(hours);HIST.samples=[];HIST.stats=null;HIST.error='';
+  updateHistoryControls();drawHistory();loadHistory();
+}
+
+async function fetchLive(){
+  try{
+    const r=await fetch('/api/live',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    // Build a lookup: sensor:metric -> value
+    const lm={};
+    for(const row of d.live){lm[row.sensor+':'+row.metric]=row;}
+    // Hero
+    const p25=lm['sps30:pm2_5_ug_m3'];
+    $('p25').textContent=p25?p25.value.toFixed(1):'--';
+    const co2=lm['scd4x:co2_ppm'];
+    $('co2').textContent=co2?co2.value:'--';
+    // Grid
+    const p1=lm['sps30:pm1_ug_m3'];$('p1').textContent=p1?p1.value.toFixed(1):'--';
+    const p10=lm['sps30:pm10_ug_m3'];$('p10').textContent=p10?p10.value.toFixed(1):'--';
+    const p4=lm['sps30:pm4_ug_m3'];$('p4').textContent=p4?p4.value.toFixed(1):'--';
+    const temp=lm['sht45:temperature_c'];$('temp').textContent=temp?temp.value.toFixed(1):'--';
+    const hum=lm['sht45:relative_humidity_percent'];$('hum').textContent=hum?hum.value.toFixed(1):'--';
+    const voc=lm['sgp41:voc_index'];$('voc').textContent=voc?voc.value:'--';
+    // Gas section
+    $('voc2').textContent=voc?voc.value:'--';
+    const nox=lm['sgp41:nox_index'];$('nox').textContent=nox?nox.value:'--';
+    const vocraw=lm['sgp41:voc_raw'];$('vocraw').textContent=vocraw?vocraw.value:'--';
+    const noxraw=lm['sgp41:nox_raw'];$('noxraw').textContent=noxraw?noxraw.value:'--';
+    // Particle counts
+    const n1=lm['sps30:pm1_num_m3'];$('n1').textContent=n1?n1.value.toFixed(1):'--';
+    const n25=lm['sps30:pm2_5_num_m3'];$('n25').textContent=n25?n25.value.toFixed(1):'--';
+    const n4=lm['sps30:pm4_num_m3'];$('n4').textContent=n4?n4.value.toFixed(1):'--';
+    const n10=lm['sps30:pm10_num_m3'];$('n10').textContent=n10?n10.value.toFixed(1):'--';
+    // Sensor status
+    const h=d.health||{};
+    const setStat=(id,state)=>{
+      const el=$(id);
+      if(!state){el.textContent='--';el.className='status';return;}
+      const s=state.state;
+      el.textContent=s==='ready'?'Online':s==='degraded'?'Degraded':s.toUpperCase();
+      el.className='status '+(s==='ready'?'good':s==='degraded'?'warn':'bad');
+    };
+    setStat('spsstatus',h.sps30);
+    setStat('scdstatus',h.scd4x);
+    setStat('shtstatus',h.sht45);
+    setStat('sgpstatus',h.sgp41);
+    $('total').textContent=d.total;
+  }catch(e){console.error('Live API error:',e);}
+}
+
+async function fetchSystem(){
+  try{
+    const r=await fetch('/api/health',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    $('up').textContent=fmtUptime(d.uptime_seconds);
+    $('mode').textContent=d.mode;
+    const dt=new Date(d.time);
+    $('dt').textContent=dt.toLocaleDateString([],{weekday:'short',day:'numeric',month:'short',year:'numeric'})+'  '+dt.toLocaleTimeString([],{hour12:false});
+  }catch(e){console.error('System API error:',e);}
+}
+
+updateHistoryControls();
+fetchLive();
+fetchSystem();
+loadHistory();
+setInterval(fetchLive,5000);
+setInterval(fetchSystem,30000);
+setInterval(()=>{
+  const refresh=HIST.hours<=6?30000:300000;
+  if(Date.now()-HIST.lastLoad>=refresh){HIST.lastLoad=Date.now();loadHistory();}
+},30000);
+addEventListener('resize',drawHistory);
 </script>
 </body>
 </html>

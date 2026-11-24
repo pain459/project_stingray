@@ -159,32 +159,67 @@ class ApiHandler(BaseHTTPRequestHandler):
         _json_response(self, 200, {"live": live, "health": health, "total": total})
 
     def _serve_history(self, query: dict[str, list[str]]) -> None:
-        """Recent measurements for sparklines."""
+        """Time-range history with stats, matching the reference API shape.
+
+        Query params:
+            metric: metric name (e.g. pm2_5_ug_m3)
+            sensor: sensor name (optional)
+            hours: time range in hours (default 24, max 720)
+            limit: max rows to return (default 900, max 5000)
+        """
+        from datetime import timedelta
+
         from stingray.storage.sqlite_store import Database
 
-        limit = int(query.get("limit", ["100"])[0])
-        limit = max(1, min(limit, 1000))
-        sensor = query.get("sensor", [None])[0]
         metric = query.get("metric", [None])[0]
+        sensor = query.get("sensor", [None])[0]
+        hours = int(query.get("hours", ["24"])[0])
+        hours = max(1, min(hours, 720))
+        limit = int(query.get("limit", ["900"])[0])
+        limit = max(1, min(limit, 5000))
+
+        now = datetime.now(UTC)
+        start = now - timedelta(hours=hours)
 
         db = Database(self.state.db_path, wal=False)
         try:
             hq = HistoryQuery(db)
             sid = SensorId(sensor) if sensor else None
             rows = hq.range(
-                start=None,
+                start=start,
                 end=None,
                 sensor=sid,
                 metric=metric,
                 limit=limit,
                 offset=0,
             )
-            # Return newest-first for the client
-            rows.reverse()
+            # Compute stats
+            values = [r["value"] for r in rows]
+            stats = None
+            if values:
+                stats = {
+                    "min": min(values),
+                    "avg": sum(values) / len(values),
+                    "max": max(values),
+                    "count": len(values),
+                }
+            # Return as [epoch, value] pairs (oldest first)
+            samples = [[r["observed_epoch"], r["value"]] for r in rows]
         finally:
             db.close()
 
-        _json_response(self, 200, {"rows": rows, "limit": limit})
+        _json_response(
+            self,
+            200,
+            {
+                "metric": metric,
+                "sensor": sensor,
+                "hours": hours,
+                "samples": samples,
+                "stats": stats,
+                "returned": len(samples),
+            },
+        )
 
     def _serve_health(self) -> None:
         """Process and scheduler health."""
