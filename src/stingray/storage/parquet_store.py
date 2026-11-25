@@ -375,6 +375,26 @@ class ParquetQuery:
         finally:
             con.close()
 
+    def count_recent(
+        self, hours: int = 24, sensor: SensorId | None = None, metric: str | None = None
+    ) -> int:
+        """Count measurements in the last N hours (fast, avoids full scan)."""
+        con = self._connect()
+        try:
+            cutoff = (datetime.now(UTC) - timedelta(hours=hours)).timestamp()
+            sql = f"SELECT COUNT(*) FROM {self._table_ref()} WHERE observed_epoch >= ?"
+            params: list[Any] = [cutoff]
+            if sensor is not None:
+                sql += " AND sensor = ?"
+                params.append(sensor.value)
+            if metric is not None:
+                sql += " AND metric = ?"
+                params.append(metric)
+            row = con.execute(sql, params).fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            con.close()
+
     def purge_before(self, cutoff: datetime) -> int:
         """Delete Parquet files older than the cutoff date. Returns files deleted."""
         cutoff_date = cutoff.astimezone(UTC)

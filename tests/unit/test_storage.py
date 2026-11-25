@@ -115,14 +115,14 @@ class TestQueries:
 
     def test_latest_with_filter(self, storage_dir: Path) -> None:
         writer = ParquetWriter(storage_dir)
-        t0 = datetime(2026, 1, 1, tzinfo=UTC)
-        writer.add(_measurement(observed=t0, value=1.0))
+        now = utc_now()
+        writer.add(_measurement(observed=now - timedelta(minutes=5), value=1.0))
         writer.add(
             _measurement(
                 sensor=SensorId.SCD4X,
                 metric=MetricId.CO2_PPM,
                 value=400.0,
-                observed=t0 + timedelta(minutes=1),
+                observed=now - timedelta(minutes=4),
             )
         )
         writer.flush()

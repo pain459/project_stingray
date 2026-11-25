@@ -115,7 +115,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         """Latest reading per (sensor, metric) plus sensor health."""
         pq = ParquetQuery(self.state.db_path)
         live = pq.latest()
-        total = pq.count()
+        total = pq.count_recent(hours=24)
 
         # Sensor health from the scheduler (live, in-memory)
         health = {}
