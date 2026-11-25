@@ -85,6 +85,7 @@ def _html_response(handler: BaseHTTPRequestHandler, status: int, html: str) -> N
     handler.send_response(status)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
     handler.end_headers()
     handler.wfile.write(body)
 
