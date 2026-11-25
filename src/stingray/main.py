@@ -22,11 +22,7 @@ from stingray.core.models import SensorId
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
-from stingray.storage.sqlite_store import (
-    Database,
-    MeasurementWriter,
-    apply_retention,
-)
+from stingray.storage.parquet_store import ParquetWriter, apply_retention
 
 log = logging.getLogger("stingray")
 
@@ -63,9 +59,8 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     queue = MeasurementQueue()
     scheduler = SensorScheduler(drivers, specs, queue)
 
-    db_path = config.database.path
-    db = Database(db_path, wal=config.database.wal_mode)
-    writer = MeasurementWriter(db, batch_size=config.database.batch_size)
+    storage_path = config.storage.path
+    writer = ParquetWriter(storage_path, batch_size=config.storage.batch_size)
 
     stop_event = threading.Event()
 
@@ -83,7 +78,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
     # Start the dashboard API server (unauthenticated, internal use).
-    api_state = ApiState(scheduler, db_path)
+    api_state = ApiState(scheduler, storage_path)
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 
     def _handle_signal(signum: int, _frame: object) -> None:
@@ -103,9 +98,9 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
                 log.info("duration reached, stopping")
                 break
             if now - last_retention > 3600:
-                deleted = apply_retention(db, config.database.retention_days)
+                deleted = apply_retention(storage_path, config.storage.retention_days)
                 if deleted:
-                    log.info("retention purge deleted %d rows", deleted)
+                    log.info("retention purge deleted %d day files", deleted)
                 last_retention = now
     finally:
         stop_event.set()
@@ -115,8 +110,6 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
         flushed = writer.flush()
         if flushed:
             log.info("flushed %d buffered measurements", flushed)
-        db.checkpoint()
-        db.close()
         log.info("shutdown complete; total measurements written: %d", writer.total_written)
     return 0
 
@@ -175,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             log.error("configuration error: %s", exc)
             return 1
     if args.db is not None:
-        config.database = config.database.model_copy(update={"path": str(args.db)})
+        config.storage = config.storage.model_copy(update={"path": str(args.db)})
     if args.port is not None:
         config.api = config.api.model_copy(update={"port": args.port})
 

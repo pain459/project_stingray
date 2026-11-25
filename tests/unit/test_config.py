@@ -85,11 +85,13 @@ class TestLoadConfig:
         cfg = load_config(p)
         assert cfg.mode == "hardware"
 
-    def test_env_override_db_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_env_override_storage_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         p = _write(tmp_path, "mode: mock\n")
-        monkeypatch.setenv("STINGRAY_DB_PATH", "/tmp/custom.db")
+        monkeypatch.setenv("STINGRAY_STORAGE_PATH", "/tmp/custom-parquet")
         cfg = load_config(p)
-        assert cfg.database.path == "/tmp/custom.db"
+        assert cfg.storage.path == "/tmp/custom-parquet"
 
     def test_telegram_token_from_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         p = _write(tmp_path, "mode: mock\n")

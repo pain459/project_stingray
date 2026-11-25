@@ -22,7 +22,7 @@ _ENV_OVERRIDES: dict[str, str] = {
     "mode": "STINGRAY_MODE",
     "api.host": "STINGRAY_API_HOST",
     "api.port": "STINGRAY_API_PORT",
-    "database.path": "STINGRAY_DB_PATH",
+    "storage.path": "STINGRAY_STORAGE_PATH",
     "alerts.telegram.bot_token": "STINGRAY_TELEGRAM_BOT_TOKEN",
     "alerts.telegram.chat_id": "STINGRAY_TELEGRAM_CHAT_ID",
     "display.timezone": "STINGRAY_DISPLAY_TZ",
@@ -34,10 +34,9 @@ class ApiConfig(BaseModel):
     port: int = Field(default=8080, ge=1, le=65535)
 
 
-class DatabaseConfig(BaseModel):
-    path: str = "stingray.db"
+class StorageConfig(BaseModel):
+    path: str = "stingray-parquet"
     retention_days: int = Field(default=30, ge=1)
-    wal_mode: bool = True
     batch_size: int = Field(default=50, ge=1)
 
 
@@ -93,7 +92,7 @@ class AppConfig(BaseModel):
 
     mode: str = "mock"
     api: ApiConfig = Field(default_factory=ApiConfig)
-    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     sensors: dict[str, SensorConfig] = Field(default_factory=dict)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)

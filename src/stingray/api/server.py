@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 
 from stingray.core.models import SensorId
 from stingray.core.scheduler import SensorScheduler
-from stingray.storage.sqlite_store import HistoryQuery
+from stingray.storage.parquet_store import ParquetQuery
 
 log = logging.getLogger("stingray.api")
 
@@ -113,38 +113,9 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def _serve_live(self) -> None:
         """Latest reading per (sensor, metric) plus sensor health."""
-        from stingray.storage.sqlite_store import Database
-
-        db = Database(self.state.db_path, wal=False)
-        try:
-            hq = HistoryQuery(db)
-            # Latest per sensor+metric
-            rows = db.connection.execute(
-                """
-                SELECT m.sensor, m.metric, m.value, m.unit, m.observed_at, m.quality
-                FROM measurements m
-                INNER JOIN (
-                    SELECT sensor, metric, MAX(id) AS max_id
-                    FROM measurements
-                    GROUP BY sensor, metric
-                ) latest ON m.id = latest.max_id
-                ORDER BY m.sensor, m.metric
-                """
-            ).fetchall()
-            live = [
-                {
-                    "sensor": r["sensor"],
-                    "metric": r["metric"],
-                    "value": r["value"],
-                    "unit": r["unit"],
-                    "observed_at": r["observed_at"],
-                    "quality": r["quality"],
-                }
-                for r in rows
-            ]
-            total = hq.count()
-        finally:
-            db.close()
+        pq = ParquetQuery(self.state.db_path)
+        live = pq.latest()
+        total = pq.count()
 
         # Sensor health from the scheduler (live, in-memory)
         health = {}
@@ -167,10 +138,6 @@ class ApiHandler(BaseHTTPRequestHandler):
             hours: time range in hours (default 24, max 720)
             limit: max rows to return (default 900, max 5000)
         """
-        from datetime import timedelta
-
-        from stingray.storage.sqlite_store import Database
-
         metric = query.get("metric", [None])[0]
         sensor = query.get("sensor", [None])[0]
         hours = int(query.get("hours", ["24"])[0])
@@ -178,35 +145,14 @@ class ApiHandler(BaseHTTPRequestHandler):
         limit = int(query.get("limit", ["900"])[0])
         limit = max(1, min(limit, 5000))
 
-        now = datetime.now(UTC)
-        start = now - timedelta(hours=hours)
-
-        db = Database(self.state.db_path, wal=False)
-        try:
-            hq = HistoryQuery(db)
-            sid = SensorId(sensor) if sensor else None
-            rows = hq.range(
-                start=start,
-                end=None,
-                sensor=sid,
-                metric=metric,
-                limit=limit,
-                offset=0,
-            )
-            # Compute stats
-            values = [r["value"] for r in rows]
-            stats = None
-            if values:
-                stats = {
-                    "min": min(values),
-                    "avg": sum(values) / len(values),
-                    "max": max(values),
-                    "count": len(values),
-                }
-            # Return as [epoch, value] pairs (oldest first)
-            samples = [[r["observed_epoch"], r["value"]] for r in rows]
-        finally:
-            db.close()
+        pq = ParquetQuery(self.state.db_path)
+        sid = SensorId(sensor) if sensor else None
+        samples, stats = pq.range_with_stats(
+            metric=metric,
+            sensor=sid,
+            hours=hours,
+            limit=limit,
+        )
 
         _json_response(
             self,

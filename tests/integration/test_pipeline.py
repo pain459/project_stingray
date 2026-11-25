@@ -1,4 +1,4 @@
-"""Integration tests: end-to-end mock application run with storage."""
+"""Integration tests: end-to-end mock application run with Parquet storage."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from stingray.core.models import SensorId
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler
 from stingray.core.sensor_protocol import CadenceSpec
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
-from stingray.storage.sqlite_store import Database, HistoryQuery, MeasurementWriter
+from stingray.storage.parquet_store import ParquetQuery, ParquetWriter
 
 
 def _fast_specs() -> dict[SensorId, CadenceSpec]:
@@ -21,55 +21,51 @@ def _fast_specs() -> dict[SensorId, CadenceSpec]:
 
 
 class TestEndToEnd:
-    def test_scheduler_to_sqlite(self, tmp_path: Path) -> None:
+    def test_scheduler_to_parquet(self, tmp_path: Path) -> None:
         drivers = [MockSHT45(seed=1), MockSCD4X(seed=2), MockSGP41(seed=3), MockSPS30(seed=4)]
         queue = MeasurementQueue()
         sched = SensorScheduler(drivers, _fast_specs(), queue)
-        db = Database(tmp_path / "e2e.db")
-        writer = MeasurementWriter(db, batch_size=100)
+        storage_dir = tmp_path / "parquet"
+        storage_dir.mkdir()
+        writer = ParquetWriter(storage_dir, batch_size=100)
 
         sched.run_cycles(5)
         items = queue.drain()
         writer.add_many(items)
         writer.flush()
 
-        hq = HistoryQuery(db)
-        total = hq.count()
+        pq = ParquetQuery(storage_dir)
+        total = pq.count()
         assert total == len(items)
         assert total > 0
 
         # Each sensor contributed.
         for sid in (SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30):
-            assert hq.count(sensor=sid) > 0
-
-        db.close()
+            assert pq.count(sensor=sid) > 0
 
     def test_restart_persistence(self, tmp_path: Path) -> None:
-        path = tmp_path / "restart.db"
+        storage_dir = tmp_path / "parquet"
+        storage_dir.mkdir()
         specs = {SensorId.SHT45: CadenceSpec(sensor=SensorId.SHT45, interval_seconds=0.0)}
 
         # First "run": 3 cycles -> 6 measurements (temp + rh per cycle).
-        sched = SensorScheduler([MockSHT45(seed=9)], specs, MeasurementQueue())
         q1 = MeasurementQueue()
         sched = SensorScheduler([MockSHT45(seed=9)], specs, q1)
         sched.run_cycles(3)
-        db1 = Database(path)
-        w1 = MeasurementWriter(db1, batch_size=100)
+        w1 = ParquetWriter(storage_dir, batch_size=100)
         w1.add_many(q1.drain())
         w1.flush()
-        db1.close()
         sched.stop(timeout=5)
 
         # Second "run" after restart: 3 more cycles -> 6 more measurements.
+        # Use a different seed so the values differ (simulates real sensor drift).
         q2 = MeasurementQueue()
-        sched2 = SensorScheduler([MockSHT45(seed=9)], specs, q2)
+        sched2 = SensorScheduler([MockSHT45(seed=10)], specs, q2)
         sched2.run_cycles(3)
-        db2 = Database(path)
-        w2 = MeasurementWriter(db2, batch_size=100)
+        w2 = ParquetWriter(storage_dir, batch_size=100)
         w2.add_many(q2.drain())
         w2.flush()
-        total = HistoryQuery(db2).count()
-        db2.close()
+        total = ParquetQuery(storage_dir).count()
         sched2.stop(timeout=5)
 
         assert total == 12  # 6 from each run

@@ -1,0 +1,408 @@
+"""DuckDB + Parquet storage: batched writer and query engine.
+
+Replaces the SQLite storage layer. Measurements are buffered in memory and
+flushed to Hive-partitioned daily Parquet files (ZSTD compressed) on the SSD.
+Queries use DuckDB's native Parquet reader with column projection and
+``time_bucket()`` downsampling for time-range queries.
+
+Layout on disk::
+
+    base_dir/
+      year=2026/
+        month=11/
+          day=25/
+            chunk_1732456800.parquet
+            chunk_1732456860.parquet
+            ...
+
+Atomic writes: each flush writes to a ``.tmp`` filename, then renames to the
+final name. DuckDB only ever sees complete files.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from stingray.core.models import Measurement, SensorId
+
+log = logging.getLogger("stingray.storage")
+
+# Global monotonic counter for chunk filenames. Shared across all writer
+# instances so that two writers (e.g. after a restart) never produce the
+# same filename.
+_chunk_counter = 0
+_chunk_counter_lock = threading.Lock()
+
+
+def _next_chunk_id() -> int:
+    global _chunk_counter
+    with _chunk_counter_lock:
+        _chunk_counter += 1
+        return _chunk_counter
+
+
+# ---------------------------------------------------------------------------
+# Schema
+# ---------------------------------------------------------------------------
+
+_PARQUET_SCHEMA = pa.schema(
+    [
+        pa.field("sensor", pa.string()),
+        pa.field("metric", pa.string()),
+        pa.field("value", pa.float64()),
+        pa.field("unit", pa.string()),
+        pa.field("observed_at", pa.string()),
+        pa.field("received_at", pa.string()),
+        pa.field("quality", pa.string()),
+        pa.field("diagnostics", pa.string()),
+        pa.field("observed_epoch", pa.float64()),
+    ]
+)
+
+
+def _iso(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat()
+
+
+def _json_diagnostics(diagnostics: dict[str, Any]) -> str:
+    return json.dumps(diagnostics, sort_keys=True)
+
+
+# ---------------------------------------------------------------------------
+# Writer
+# ---------------------------------------------------------------------------
+
+
+class ParquetWriter:
+    """Batches measurements and flushes them to Hive-partitioned Parquet files.
+
+    The writer buffers up to ``batch_size`` rows, then writes them to a
+    new Parquet file under the appropriate ``year=YYYY/month=MM/day=DD/``
+    directory. ``flush()`` must be called before shutdown or when the buffer
+    is full.
+
+    Thread-safe: a lock guards the buffer and the flush operation.
+    """
+
+    def __init__(self, base_dir: str | Path, *, batch_size: int = 50) -> None:
+        self._base_dir = Path(base_dir)
+        self._batch_size = batch_size
+        self._buffer: list[Measurement] = []
+        self._lock = threading.Lock()
+        self.total_written = 0
+
+    def add(self, m: Measurement) -> None:
+        with self._lock:
+            self._buffer.append(m)
+            if len(self._buffer) >= self._batch_size:
+                self._flush_locked()
+
+    def add_many(self, measurements: list[Measurement]) -> None:
+        with self._lock:
+            self._buffer.extend(measurements)
+            if len(self._buffer) >= self._batch_size:
+                self._flush_locked()
+
+    def flush(self) -> int:
+        """Write buffered rows to Parquet. Returns the number of rows written."""
+        with self._lock:
+            return self._flush_locked()
+
+    def _flush_locked(self) -> int:
+        if not self._buffer:
+            return 0
+        rows = self._buffer
+        self._buffer = []
+
+        # Group by date (from observed_at)
+        by_date: dict[str, list[Measurement]] = {}
+        for m in rows:
+            d = m.observed_at.astimezone(UTC)
+            key = f"year={d.year:04d}/month={d.month:02d}/day={d.day:02d}"
+            by_date.setdefault(key, []).append(m)
+
+        for date_key, batch in by_date.items():
+            self._write_batch(date_key, batch)
+
+        self.total_written += len(rows)
+        log.debug("flushed %d measurements to parquet", len(rows))
+        return len(rows)
+
+    def _write_batch(self, date_key: str, batch: list[Measurement]) -> None:
+        day_dir = self._base_dir / date_key
+        day_dir.mkdir(parents=True, exist_ok=True)
+
+        chunk_id = _next_chunk_id()
+        final_name = f"chunk_{chunk_id:010d}.parquet"
+        final_path = day_dir / final_name
+        tmp_path = day_dir / f"{final_name}.tmp"
+
+        # Build the Arrow table
+        table = pa.table(
+            {
+                "sensor": [m.sensor.value for m in batch],
+                "metric": [m.metric.value for m in batch],
+                "value": [m.value for m in batch],
+                "unit": [m.unit for m in batch],
+                "observed_at": [_iso(m.observed_at) for m in batch],
+                "received_at": [_iso(m.received_at) for m in batch],
+                "quality": [m.quality.value for m in batch],
+                "diagnostics": [_json_diagnostics(m.diagnostics) for m in batch],
+                "observed_epoch": [m.observed_at.timestamp() for m in batch],
+            },
+            schema=_PARQUET_SCHEMA,
+        )
+
+        # Write to temp file, then atomically rename
+        pq.write_table(table, tmp_path, compression="zstd")
+        tmp_path.rename(final_path)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._buffer)
+
+
+# ---------------------------------------------------------------------------
+# Query
+# ---------------------------------------------------------------------------
+
+
+class ParquetQuery:
+    """Read-side queries over Hive-partitioned Parquet files using DuckDB.
+
+    Each query opens a fresh DuckDB connection (read-only, no shared state),
+    runs the query, and closes the connection. This is safe for concurrent
+    use from the API server's thread pool.
+    """
+
+    def __init__(self, base_dir: str | Path) -> None:
+        self._base_dir = Path(base_dir)
+        self._glob = str(self._base_dir / "**" / "*.parquet")
+
+    def _connect(self) -> duckdb.DuckDBPyConnection:
+        return duckdb.connect()
+
+    def _table_ref(self) -> str:
+        """Return the DuckDB table reference for all Parquet files."""
+        return f"read_parquet('{self._glob}', hive_partitioning=true)"
+
+    def latest(
+        self, sensor: SensorId | None = None, metric: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return the most recent measurement per (sensor, metric)."""
+        con = self._connect()
+        try:
+            sql = f"""
+                SELECT sensor, metric, value, unit, observed_at, quality
+                FROM (
+                    SELECT *,
+                           row_number() OVER (
+                               PARTITION BY sensor, metric
+                               ORDER BY observed_epoch DESC
+                           ) AS rn
+                    FROM {self._table_ref()}
+                    WHERE 1=1
+            """
+            params: list[Any] = []
+            if sensor is not None:
+                sql += " AND sensor = ?"
+                params.append(sensor.value)
+            if metric is not None:
+                sql += " AND metric = ?"
+                params.append(metric)
+            sql += """
+                ) ranked
+                WHERE rn = 1
+                ORDER BY sensor, metric
+            """
+            rows = con.execute(sql, params).fetchall()
+            cols = ["sensor", "metric", "value", "unit", "observed_at", "quality"]
+            return [dict(zip(cols, r, strict=False)) for r in rows]
+        finally:
+            con.close()
+
+    def range(
+        self,
+        sensor: SensorId | None = None,
+        metric: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Return measurements in [start, end], oldest first, paginated."""
+        con = self._connect()
+        try:
+            sql = f"""
+                SELECT sensor, metric, value, unit, observed_at,
+                       observed_epoch, quality
+                FROM {self._table_ref()}
+                WHERE 1=1
+            """
+            params: list[Any] = []
+            if sensor is not None:
+                sql += " AND sensor = ?"
+                params.append(sensor.value)
+            if metric is not None:
+                sql += " AND metric = ?"
+                params.append(metric)
+            if start is not None:
+                sql += " AND observed_epoch >= ?"
+                params.append(start.timestamp())
+            if end is not None:
+                sql += " AND observed_epoch <= ?"
+                params.append(end.timestamp())
+            sql += " ORDER BY observed_epoch ASC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            rows = con.execute(sql, params).fetchall()
+            cols = [
+                "sensor",
+                "metric",
+                "value",
+                "unit",
+                "observed_at",
+                "observed_epoch",
+                "quality",
+            ]
+            return [dict(zip(cols, r, strict=False)) for r in rows]
+        finally:
+            con.close()
+
+    def range_with_stats(
+        self,
+        metric: str | None = None,
+        sensor: SensorId | None = None,
+        hours: int = 24,
+        limit: int = 900,
+    ) -> tuple[list[list[float]], dict[str, Any] | None]:
+        """Time-range query with downsampling and stats.
+
+        Uses DuckDB's ``time_bucket()`` to downsample to at most ``limit``
+        points. Returns (samples, stats) where samples is a list of
+        [epoch, value] pairs and stats is {min, avg, max, count}.
+        """
+        con = self._connect()
+        try:
+            now = datetime.now(UTC)
+            start = now - timedelta(hours=hours)
+
+            # Choose bucket interval to target ~limit points
+            total_seconds = hours * 3600
+            bucket_seconds = max(1, total_seconds // limit)
+            # Round to a nice interval
+            if bucket_seconds <= 60:
+                bucket = f"{bucket_seconds} seconds"
+            elif bucket_seconds <= 3600:
+                bucket = f"{bucket_seconds // 60} minutes"
+            else:
+                bucket = f"{bucket_seconds // 3600} hours"
+
+            sql = f"""
+                SELECT
+                    time_bucket(INTERVAL '{bucket}', to_timestamp(observed_epoch)) AS bucket,
+                    AVG(value) AS avg_val,
+                    MIN(value) AS min_val,
+                    MAX(value) AS max_val,
+                    COUNT(*) AS cnt
+                FROM {self._table_ref()}
+                WHERE 1=1
+            """
+            params: list[Any] = []
+            if sensor is not None:
+                sql += " AND sensor = ?"
+                params.append(sensor.value)
+            if metric is not None:
+                sql += " AND metric = ?"
+                params.append(metric)
+            sql += " AND observed_epoch >= ?"
+            params.append(start.timestamp())
+            sql += """
+                GROUP BY bucket
+                ORDER BY bucket ASC
+            """
+            rows = con.execute(sql, params).fetchall()
+            if not rows:
+                return [], None
+
+            samples: list[list[float]] = []
+            all_values: list[float] = []
+            for r in rows:
+                bucket_ts = r[0]
+                if hasattr(bucket_ts, "timestamp"):
+                    epoch = bucket_ts.timestamp()
+                else:
+                    epoch = float(bucket_ts)
+                samples.append([epoch, r[1]])
+                all_values.append(r[1])
+
+            stats = {
+                "min": min(all_values),
+                "avg": sum(all_values) / len(all_values),
+                "max": max(all_values),
+                "count": len(all_values),
+            }
+            return samples, stats
+        finally:
+            con.close()
+
+    def count(self, sensor: SensorId | None = None, metric: str | None = None) -> int:
+        con = self._connect()
+        try:
+            sql = f"SELECT COUNT(*) FROM {self._table_ref()} WHERE 1=1"
+            params: list[Any] = []
+            if sensor is not None:
+                sql += " AND sensor = ?"
+                params.append(sensor.value)
+            if metric is not None:
+                sql += " AND metric = ?"
+                params.append(metric)
+            row = con.execute(sql, params).fetchone()
+            return int(row[0]) if row else 0
+        finally:
+            con.close()
+
+    def purge_before(self, cutoff: datetime) -> int:
+        """Delete Parquet files older than the cutoff date. Returns files deleted."""
+        cutoff_date = cutoff.astimezone(UTC)
+        deleted = 0
+        if not self._base_dir.exists():
+            return 0
+        for year_dir in self._base_dir.iterdir():
+            if not year_dir.is_dir() or not year_dir.name.startswith("year="):
+                continue
+            for month_dir in year_dir.iterdir():
+                if not month_dir.is_dir() or not month_dir.name.startswith("month="):
+                    continue
+                for day_dir in month_dir.iterdir():
+                    if not day_dir.is_dir() or not day_dir.name.startswith("day="):
+                        continue
+                    # Parse the date from the directory name
+                    try:
+                        year = int(year_dir.name.split("=")[1])
+                        month = int(month_dir.name.split("=")[1])
+                        day = int(day_dir.name.split("=")[1])
+                        day_start = datetime(year, month, day, tzinfo=UTC)
+                    except (ValueError, IndexError):
+                        continue
+                    if day_start <= cutoff_date:
+                        import shutil
+
+                        shutil.rmtree(day_dir, ignore_errors=True)
+                        deleted += 1
+                        log.info("retention: deleted %s", day_dir)
+        return deleted
+
+
+def apply_retention(base_dir: str | Path, retention_days: int) -> int:
+    """Purge Parquet files older than the retention window. Returns files deleted."""
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    return ParquetQuery(base_dir).purge_before(cutoff)
