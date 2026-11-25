@@ -7,13 +7,17 @@
 
 const $ = id => document.getElementById(id);
 
-function toggleTheme() {
+// Default to dark mode
+document.documentElement.setAttribute('data-theme', 'dark');
+$('theme').textContent = '☀️';
+
+window.toggleTheme = function() {
   const h = document.documentElement;
   const dark = h.getAttribute('data-theme') === 'dark';
   h.setAttribute('data-theme', dark ? '' : 'dark');
   $('theme').textContent = dark ? '🌙' : '☀️';
   drawHistory();
-}
+};
 
 // Init
 updateHistoryControls();

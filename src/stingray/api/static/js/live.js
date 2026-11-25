@@ -5,20 +5,20 @@
 
 const $ = id => document.getElementById(id);
 
-function fmtVal(v, dec) {
+window.fmtVal = function(v, dec) {
   if (v == null || isNaN(v)) return '--';
   return v.toFixed(dec);
-}
+};
 
-function fmtUptime(s) {
+window.fmtUptime = function(s) {
   if (s == null) return '--';
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
   if (h > 0) return h + 'd ' + m + 'h';
   if (m > 0) return m + 'h ' + sec + 'm';
   return sec + 's';
-}
+};
 
-async function fetchLive() {
+window.fetchLive = async function() {
   try {
     const r = await fetch('/api/live', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -63,9 +63,9 @@ async function fetchLive() {
     setStat('sgpstatus', h.sgp41);
     $('total').textContent = d.total;
   } catch (e) { console.error('Live API error:', e); }
-}
+};
 
-async function fetchSystem() {
+window.fetchSystem = async function() {
   try {
     const r = await fetch('/api/health', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -76,4 +76,4 @@ async function fetchSystem() {
     $('dt').textContent = dt.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) +
       '  ' + dt.toLocaleTimeString([], { hour12: false });
   } catch (e) { console.error('System API error:', e); }
-}
+};

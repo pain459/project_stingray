@@ -19,7 +19,7 @@ const METRIC_META = {
   nox_index: { label: 'NOx Index', unit: 'Index', decimals: 0 }
 };
 
-const HIST = {
+window.HIST = {
   metric: 'pm2_5_ug_m3', hours: 24, samples: [], label: 'PM2.5', unit: 'µg/m³', decimals: 1,
   stats: null, lastLoad: 0, error: '', requestSeq: 0,
   viewStart: 0, viewEnd: 1,
@@ -27,7 +27,7 @@ const HIST = {
   hoverIdx: -1
 };
 
-function updateHistoryControls() {
+window.updateHistoryControls = function() {
   document.querySelectorAll('#metricSelector button').forEach(b => {
     b.classList.toggle('active', b.dataset.metric === HIST.metric);
   });
@@ -39,18 +39,18 @@ function updateHistoryControls() {
   const rangeLabel = HIST.hours <= 1 ? HIST.hours + ' hour' :
     HIST.hours < 24 ? HIST.hours + ' hours' : Math.round(HIST.hours / 24) + ' days';
   $('historyTitle').textContent = HIST.label + ' — last ' + rangeLabel;
-}
+};
 
-function updateHistoryStats() {
+window.updateHistoryStats = function() {
   const s = HIST.stats;
   if (!s) { $('hmin').textContent = '--'; $('havg').textContent = '--'; $('hmax').textContent = '--'; return; }
   $('hmin').textContent = fmtVal(s.min, HIST.decimals);
   $('havg').textContent = fmtVal(s.avg, HIST.decimals);
   $('hmax').textContent = fmtVal(s.max, HIST.decimals);
   $('hminunit').textContent = HIST.unit; $('havgunit').textContent = HIST.unit; $('hmaxunit').textContent = HIST.unit;
-}
+};
 
-async function loadHistory() {
+window.loadHistory = async function() {
   HIST.requestSeq++;
   const seq = HIST.requestSeq;
   try {
@@ -70,16 +70,16 @@ async function loadHistory() {
     $('historyMeta').textContent = 'History unavailable: ' + e.message;
     drawHistory();
   }
-}
+};
 
-function selectMetric(metric) {
+window.selectMetric = function(metric) {
   HIST.metric = metric; HIST.samples = []; HIST.stats = null; HIST.error = '';
   HIST.viewStart = 0; HIST.viewEnd = 1;
   updateHistoryControls(); updateHistoryStats(); drawHistory(); loadHistory();
-}
+};
 
-function selectRange(hours) {
+window.selectRange = function(hours) {
   HIST.hours = Number(hours); HIST.samples = []; HIST.stats = null; HIST.error = '';
   HIST.viewStart = 0; HIST.viewEnd = 1;
   updateHistoryControls(); drawHistory(); loadHistory();
-}
+};

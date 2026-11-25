@@ -62,7 +62,7 @@ function getVisibleSamples() {
   return vis;
 }
 
-function drawHistory() {
+window.drawHistory = function() {
   const canvas = $('historyChart');
   const wrap = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
@@ -167,7 +167,7 @@ function drawHistory() {
     ctx.fillStyle = cssVar('--accent'); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.stroke();
   }
-}
+};
 
 function showTooltip(clientX, clientY, epoch, value) {
   const tt = $('chartTooltip');
@@ -186,20 +186,20 @@ function hideTooltip() {
   $('chartTooltip').style.display = 'none';
 }
 
-function resetZoom() {
+window.resetZoom = function() {
   HIST.viewStart = 0;
   HIST.viewEnd = 1;
   drawHistory();
-}
+};
 
-function zoomTo(fracStart, fracEnd) {
+window.zoomTo = function(fracStart, fracEnd) {
   if (fracEnd - fracStart < 0.02) return;
   HIST.viewStart = Math.max(0, fracStart);
   HIST.viewEnd = Math.min(1, fracEnd);
   drawHistory();
-}
+};
 
-function setupChartInteractions() {
+window.setupChartInteractions = function() {
   const canvas = $('historyChart');
 
   canvas.addEventListener('mousedown', e => {
@@ -287,4 +287,4 @@ function setupChartInteractions() {
     HIST.viewEnd = Math.min(1, ne);
     drawHistory();
   }, { passive: false });
-}
+};
