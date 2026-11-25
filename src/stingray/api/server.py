@@ -29,7 +29,18 @@ from stingray.storage.parquet_store import ParquetQuery
 
 log = logging.getLogger("stingray.api")
 
-_DASHBOARD_HTML = Path(__file__).resolve().parent / "static" / "index.html"
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+_DASHBOARD_HTML = _STATIC_DIR / "index.html"
+
+_MIME_TYPES: dict[str, str] = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+}
 
 
 class ApiState:
@@ -100,6 +111,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._serve_history(query)
         elif path == "/api/health":
             self._serve_health()
+        elif path.startswith("/css/") or path.startswith("/js/"):
+            self._serve_static(path)
         else:
             _json_response(self, 404, {"error": "not found"})
 
@@ -110,6 +123,31 @@ class ApiHandler(BaseHTTPRequestHandler):
             _html_response(self, 500, "<h1>Dashboard not found</h1>")
             return
         _html_response(self, 200, html)
+
+    def _serve_static(self, path: str) -> None:
+        """Serve static assets (CSS, JS) from the static directory."""
+        # Prevent path traversal
+        if ".." in path:
+            _json_response(self, 403, {"error": "forbidden"})
+            return
+        file_path = _STATIC_DIR / path.lstrip("/")
+        if not file_path.is_file():
+            _json_response(self, 404, {"error": "not found"})
+            return
+        try:
+            data = file_path.read_bytes()
+        except OSError:
+            _json_response(self, 500, {"error": "read error"})
+            return
+        ext = file_path.suffix.lower()
+        mime = _MIME_TYPES.get(ext, "application/octet-stream")
+        body = data
+        self.send_response(200)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _serve_live(self) -> None:
         """Latest reading per (sensor, metric) plus sensor health."""
