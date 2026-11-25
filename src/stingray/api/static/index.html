@@ -10,7 +10,7 @@
 <div class="container">
 
 <div class="header">
-  <button id="theme" onclick="toggleTheme()">🌙</button>
+  <button id="theme" onclick="window.toggleTheme()">☀️</button>
   <h1>🏠 Air Quality Monitor</h1>
   <p id="dt">Loading device status...</p>
 </div>
@@ -50,24 +50,24 @@
 
   <div class="selector-label">Metric</div>
   <div class="selector" id="metricSelector">
-    <button data-metric="pm2_5_ug_m3" onclick="selectMetric('pm2_5_ug_m3')">PM2.5</button>
-    <button data-metric="pm10_ug_m3" onclick="selectMetric('pm10_ug_m3')">PM10</button>
-    <button data-metric="pm1_ug_m3" onclick="selectMetric('pm1_ug_m3')">PM1</button>
-    <button data-metric="pm4_ug_m3" onclick="selectMetric('pm4_ug_m3')">PM4</button>
-    <button data-metric="co2_ppm" onclick="selectMetric('co2_ppm')">CO₂</button>
-    <button data-metric="temperature_c" onclick="selectMetric('temperature_c')">Temperature</button>
-    <button data-metric="relative_humidity_percent" onclick="selectMetric('relative_humidity_percent')">Humidity</button>
-    <button data-metric="voc_index" onclick="selectMetric('voc_index')">VOC</button>
-    <button data-metric="nox_index" onclick="selectMetric('nox_index')">NOx</button>
+    <button data-metric="pm2_5_ug_m3" onclick="window.selectMetric('pm2_5_ug_m3')">PM2.5</button>
+    <button data-metric="pm10_ug_m3" onclick="window.selectMetric('pm10_ug_m3')">PM10</button>
+    <button data-metric="pm1_ug_m3" onclick="window.selectMetric('pm1_ug_m3')">PM1</button>
+    <button data-metric="pm4_ug_m3" onclick="window.selectMetric('pm4_ug_m3')">PM4</button>
+    <button data-metric="co2_ppm" onclick="window.selectMetric('co2_ppm')">CO₂</button>
+    <button data-metric="temperature_c" onclick="window.selectMetric('temperature_c')">Temperature</button>
+    <button data-metric="relative_humidity_percent" onclick="window.selectMetric('relative_humidity_percent')">Humidity</button>
+    <button data-metric="voc_index" onclick="window.selectMetric('voc_index')">VOC</button>
+    <button data-metric="nox_index" onclick="window.selectMetric('nox_index')">NOx</button>
   </div>
 
   <div class="selector-label">Range</div>
   <div class="selector" id="rangeSelector">
-    <button data-hours="1" onclick="selectRange(1)">1h</button>
-    <button data-hours="6" onclick="selectRange(6)">6h</button>
-    <button data-hours="24" class="active" onclick="selectRange(24)">24h</button>
-    <button data-hours="168" onclick="selectRange(168)">7d</button>
-    <button data-hours="720" onclick="selectRange(720)">30d</button>
+    <button data-hours="1" onclick="window.selectRange(1)">1h</button>
+    <button data-hours="6" onclick="window.selectRange(6)">6h</button>
+    <button data-hours="24" class="active" onclick="window.selectRange(24)">24h</button>
+    <button data-hours="168" onclick="window.selectRange(168)">7d</button>
+    <button data-hours="720" onclick="window.selectRange(720)">30d</button>
   </div>
 
   <div class="history-head">

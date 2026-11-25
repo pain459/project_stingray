@@ -20,21 +20,21 @@ window.toggleTheme = function() {
 };
 
 // Init
-updateHistoryControls();
-fetchLive();
-fetchSystem();
-loadHistory();
-setupChartInteractions();
+window.updateHistoryControls();
+window.fetchLive();
+window.fetchSystem();
+window.loadHistory();
+window.setupChartInteractions();
 
 // Polling
-setInterval(fetchLive, 5000);
-setInterval(fetchSystem, 30000);
+setInterval(window.fetchLive, 5000);
+setInterval(window.fetchSystem, 30000);
 setInterval(() => {
-  const refresh = HIST.hours <= 6 ? 30000 : 300000;
-  if (Date.now() - HIST.lastLoad >= refresh) {
-    HIST.lastLoad = Date.now();
-    loadHistory();
+  const refresh = window.HIST.hours <= 6 ? 30000 : 300000;
+  if (Date.now() - window.HIST.lastLoad >= refresh) {
+    window.HIST.lastLoad = Date.now();
+    window.loadHistory();
   }
 }, 30000);
 
-addEventListener('resize', drawHistory);
+addEventListener('resize', window.drawHistory);
