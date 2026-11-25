@@ -70,7 +70,7 @@ window.fetchSystem = async function() {
     const r = await fetch('/api/health', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    $('up').textContent = fmtUptime(d.uptime_seconds);
+    $('up').textContent = window.fmtUptime(d.uptime_seconds);
     $('mode').textContent = d.mode;
     const dt = new Date(d.time);
     $('dt').textContent = dt.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) +

@@ -16,7 +16,7 @@ window.toggleTheme = function() {
   const dark = h.getAttribute('data-theme') === 'dark';
   h.setAttribute('data-theme', dark ? '' : 'dark');
   $('theme').textContent = dark ? '🌙' : '☀️';
-  drawHistory();
+  window.drawHistory();
 };
 
 // Init

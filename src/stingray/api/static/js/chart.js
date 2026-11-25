@@ -2,7 +2,7 @@
  * chart.js — Canvas chart rendering with zoom, drag, hover, tooltip.
  *
  * Reads from window.HIST (shared state). Exposes:
- *   drawHistory(), setupChartInteractions(), resetZoom(), zoomTo()
+ *   window.drawHistory(), setupChartInteractions(), window.resetZoom(), zoomTo()
  */
 'use strict';
 
@@ -179,7 +179,7 @@ function showTooltip(clientX, clientY, epoch, value) {
   tt.style.left = Math.min(x, rect.width - 150) + 'px';
   tt.style.top = Math.max(0, y) + 'px';
   tt.innerHTML = '<div class="tt-time">' + fmtTime(epoch, window.HIST.hours) + '</div>' +
-    '<div class="tt-val">' + fmtVal(value, window.HIST.decimals) + ' <span class="tt-unit">' + window.HIST.unit + '</span></div>';
+    '<div class="tt-val">' + window.fmtVal(value, window.HIST.decimals) + ' <span class="tt-unit">' + window.HIST.unit + '</span></div>';
 }
 
 function hideTooltip() {
@@ -189,14 +189,14 @@ function hideTooltip() {
 window.resetZoom = function() {
   window.HIST.viewStart = 0;
   window.HIST.viewEnd = 1;
-  drawHistory();
+  window.drawHistory();
 };
 
 window.zoomTo = function(fracStart, fracEnd) {
   if (fracEnd - fracStart < 0.02) return;
   window.HIST.viewStart = Math.max(0, fracStart);
   window.HIST.viewEnd = Math.min(1, fracEnd);
-  drawHistory();
+  window.drawHistory();
 };
 
 window.setupChartInteractions = function() {
@@ -217,7 +217,7 @@ window.setupChartInteractions = function() {
 
     if (window.HIST.dragging) {
       window.HIST.dragEndX = mx;
-      drawHistory();
+      window.drawHistory();
       return;
     }
 
@@ -230,7 +230,7 @@ window.setupChartInteractions = function() {
     const total = t1 - t0 || 1;
 
     const frac = (mx * dpr - padL) / plotW;
-    if (frac < 0 || frac > 1) { hideTooltip(); window.HIST.hoverIdx = -1; drawHistory(); return; }
+    if (frac < 0 || frac > 1) { hideTooltip(); window.HIST.hoverIdx = -1; window.drawHistory(); return; }
 
     const targetT = t0 + total * frac;
     let best = 0, bestD = Infinity;
@@ -239,7 +239,7 @@ window.setupChartInteractions = function() {
       if (d < bestD) { bestD = d; best = i; }
     }
     window.HIST.hoverIdx = best;
-    drawHistory();
+    window.drawHistory();
     showTooltip(e.clientX, e.clientY, pts[best][0], pts[best][1]);
   });
 
@@ -249,20 +249,20 @@ window.setupChartInteractions = function() {
     const rect = canvas.getBoundingClientRect();
     const x1 = Math.min(window.HIST.dragStartX, window.HIST.dragEndX);
     const x2 = Math.max(window.HIST.dragStartX, window.HIST.dragEndX);
-    if (x2 - x1 < 10) { resetZoom(); return; }
+    if (x2 - x1 < 10) { window.resetZoom(); return; }
     const dpr = window.devicePixelRatio || 1;
     const padL = 55 * dpr, padR = 15 * dpr;
     const plotW = canvas.width - padL - padR;
     const f1 = Math.max(0, (x1 * dpr - padL) / plotW);
     const f2 = Math.min(1, (x2 * dpr - padL) / plotW);
-    zoomTo(f1, f2);
+    window.zoomTo(f1, f2);
   });
 
   canvas.addEventListener('mouseleave', () => {
     window.HIST.dragging = false;
     window.HIST.hoverIdx = -1;
     hideTooltip();
-    drawHistory();
+    window.drawHistory();
   });
 
   canvas.addEventListener('dblclick', resetZoom);
@@ -285,6 +285,6 @@ window.setupChartInteractions = function() {
     if (ne > 1) { ns -= ne - 1; ne = 1; }
     window.HIST.viewStart = Math.max(0, ns);
     window.HIST.viewEnd = Math.min(1, ne);
-    drawHistory();
+    window.drawHistory();
   }, { passive: false });
 };

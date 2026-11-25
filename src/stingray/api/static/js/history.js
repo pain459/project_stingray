@@ -62,24 +62,24 @@ window.loadHistory = async function() {
     window.HIST.stats = d.stats || null;
     window.HIST.error = '';
     window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
-    updateHistoryStats(); drawHistory();
+    window.updateHistoryStats(); window.drawHistory();
     $('historyMeta').textContent = d.returned + ' samples · ' + (d.hours || window.HIST.hours) + 'h range';
   } catch (e) {
     if (seq !== window.HIST.requestSeq) return;
     window.HIST.error = e.message;
     $('historyMeta').textContent = 'History unavailable: ' + e.message;
-    drawHistory();
+    window.drawHistory();
   }
 };
 
 window.selectMetric = function(metric) {
   window.HIST.metric = metric; window.HIST.samples = []; window.HIST.stats = null; window.HIST.error = '';
   window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
-  updateHistoryControls(); updateHistoryStats(); drawHistory(); loadHistory();
+  window.updateHistoryControls(); window.updateHistoryStats(); window.drawHistory(); window.loadHistory();
 };
 
 window.selectRange = function(hours) {
   window.HIST.hours = Number(hours); window.HIST.samples = []; window.HIST.stats = null; window.HIST.error = '';
   window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
-  updateHistoryControls(); drawHistory(); loadHistory();
+  window.updateHistoryControls(); window.drawHistory(); window.loadHistory();
 };
