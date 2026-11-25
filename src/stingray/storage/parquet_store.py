@@ -198,9 +198,14 @@ class ParquetQuery:
     def latest(
         self, sensor: SensorId | None = None, metric: str | None = None
     ) -> list[dict[str, Any]]:
-        """Return the most recent measurement per (sensor, metric)."""
+        """Return the most recent measurement per (sensor, metric).
+
+        Only scans the last 2 hours of data to keep this fast even with
+        large datasets.
+        """
         con = self._connect()
         try:
+            cutoff = (datetime.now(UTC) - timedelta(hours=2)).timestamp()
             sql = f"""
                 SELECT sensor, metric, value, unit, observed_at, quality
                 FROM (
@@ -210,9 +215,9 @@ class ParquetQuery:
                                ORDER BY observed_epoch DESC
                            ) AS rn
                     FROM {self._table_ref()}
-                    WHERE 1=1
+                    WHERE observed_epoch >= ?
             """
-            params: list[Any] = []
+            params: list[Any] = [cutoff]
             if sensor is not None:
                 sql += " AND sensor = ?"
                 params.append(sensor.value)
