@@ -29,57 +29,57 @@ window.HIST = {
 
 window.updateHistoryControls = function() {
   document.querySelectorAll('#metricSelector button').forEach(b => {
-    b.classList.toggle('active', b.dataset.metric === HIST.metric);
+    b.classList.toggle('active', b.dataset.metric === window.HIST.metric);
   });
   document.querySelectorAll('#rangeSelector button').forEach(b => {
-    b.classList.toggle('active', Number(b.dataset.hours) === HIST.hours);
+    b.classList.toggle('active', Number(b.dataset.hours) === window.HIST.hours);
   });
-  const meta = METRIC_META[HIST.metric] || { label: HIST.metric, unit: '', decimals: 1 };
-  HIST.label = meta.label; HIST.unit = meta.unit; HIST.decimals = meta.decimals;
-  const rangeLabel = HIST.hours <= 1 ? HIST.hours + ' hour' :
-    HIST.hours < 24 ? HIST.hours + ' hours' : Math.round(HIST.hours / 24) + ' days';
-  $('historyTitle').textContent = HIST.label + ' — last ' + rangeLabel;
+  const meta = METRIC_META[window.HIST.metric] || { label: window.HIST.metric, unit: '', decimals: 1 };
+  window.HIST.label = meta.label; window.HIST.unit = meta.unit; window.HIST.decimals = meta.decimals;
+  const rangeLabel = window.HIST.hours <= 1 ? window.HIST.hours + ' hour' :
+    window.HIST.hours < 24 ? window.HIST.hours + ' hours' : Math.round(window.HIST.hours / 24) + ' days';
+  $('historyTitle').textContent = window.HIST.label + ' — last ' + rangeLabel;
 };
 
 window.updateHistoryStats = function() {
-  const s = HIST.stats;
+  const s = window.HIST.stats;
   if (!s) { $('hmin').textContent = '--'; $('havg').textContent = '--'; $('hmax').textContent = '--'; return; }
-  $('hmin').textContent = fmtVal(s.min, HIST.decimals);
-  $('havg').textContent = fmtVal(s.avg, HIST.decimals);
-  $('hmax').textContent = fmtVal(s.max, HIST.decimals);
-  $('hminunit').textContent = HIST.unit; $('havgunit').textContent = HIST.unit; $('hmaxunit').textContent = HIST.unit;
+  $('hmin').textContent = fmtVal(s.min, window.HIST.decimals);
+  $('havg').textContent = fmtVal(s.avg, window.HIST.decimals);
+  $('hmax').textContent = fmtVal(s.max, window.HIST.decimals);
+  $('hminunit').textContent = window.HIST.unit; $('havgunit').textContent = window.HIST.unit; $('hmaxunit').textContent = window.HIST.unit;
 };
 
 window.loadHistory = async function() {
-  HIST.requestSeq++;
-  const seq = HIST.requestSeq;
+  window.HIST.requestSeq++;
+  const seq = window.HIST.requestSeq;
   try {
-    const r = await fetch('/api/history?metric=' + HIST.metric + '&hours=' + HIST.hours, { cache: 'no-store' });
+    const r = await fetch('/api/history?metric=' + window.HIST.metric + '&hours=' + window.HIST.hours, { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    if (seq !== HIST.requestSeq) return;
-    HIST.samples = d.samples || [];
-    HIST.stats = d.stats || null;
-    HIST.error = '';
-    HIST.viewStart = 0; HIST.viewEnd = 1;
+    if (seq !== window.HIST.requestSeq) return;
+    window.HIST.samples = d.samples || [];
+    window.HIST.stats = d.stats || null;
+    window.HIST.error = '';
+    window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
     updateHistoryStats(); drawHistory();
-    $('historyMeta').textContent = d.returned + ' samples · ' + (d.hours || HIST.hours) + 'h range';
+    $('historyMeta').textContent = d.returned + ' samples · ' + (d.hours || window.HIST.hours) + 'h range';
   } catch (e) {
-    if (seq !== HIST.requestSeq) return;
-    HIST.error = e.message;
+    if (seq !== window.HIST.requestSeq) return;
+    window.HIST.error = e.message;
     $('historyMeta').textContent = 'History unavailable: ' + e.message;
     drawHistory();
   }
 };
 
 window.selectMetric = function(metric) {
-  HIST.metric = metric; HIST.samples = []; HIST.stats = null; HIST.error = '';
-  HIST.viewStart = 0; HIST.viewEnd = 1;
+  window.HIST.metric = metric; window.HIST.samples = []; window.HIST.stats = null; window.HIST.error = '';
+  window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
   updateHistoryControls(); updateHistoryStats(); drawHistory(); loadHistory();
 };
 
 window.selectRange = function(hours) {
-  HIST.hours = Number(hours); HIST.samples = []; HIST.stats = null; HIST.error = '';
-  HIST.viewStart = 0; HIST.viewEnd = 1;
+  window.HIST.hours = Number(hours); window.HIST.samples = []; window.HIST.stats = null; window.HIST.error = '';
+  window.HIST.viewStart = 0; window.HIST.viewEnd = 1;
   updateHistoryControls(); drawHistory(); loadHistory();
 };

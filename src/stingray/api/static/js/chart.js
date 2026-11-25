@@ -48,13 +48,13 @@ function fmtTime(epoch, rangeHours) {
 }
 
 function getVisibleSamples() {
-  const pts = HIST.samples;
+  const pts = window.HIST.samples;
   if (!pts || pts.length < 2) return [];
   const t0 = pts[0][0], t1 = pts[pts.length - 1][0];
   const total = t1 - t0;
   if (total <= 0) return pts;
-  const vs = t0 + total * HIST.viewStart;
-  const ve = t0 + total * HIST.viewEnd;
+  const vs = t0 + total * window.HIST.viewStart;
+  const ve = t0 + total * window.HIST.viewEnd;
   const vis = [];
   for (const p of pts) {
     if (p[0] >= vs && p[0] <= ve) vis.push(p);
@@ -76,7 +76,7 @@ window.drawHistory = function() {
     ctx.fillStyle = cssVar('--sec');
     ctx.font = '14px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText(HIST.error || 'No data yet', w / 2, h / 2);
+    ctx.fillText(window.HIST.error || 'No data yet', w / 2, h / 2);
     return;
   }
 
@@ -112,7 +112,7 @@ window.drawHistory = function() {
   ctx.textBaseline = 'middle';
   for (const tv of yTicks.ticks) {
     const y = padT + plotH * (1 - (tv - vMin) / (vMax - vMin));
-    ctx.fillText(tv.toFixed(HIST.decimals > 0 ? 1 : 0), padL - 6 * dpr, y);
+    ctx.fillText(tv.toFixed(window.HIST.decimals > 0 ? 1 : 0), padL - 6 * dpr, y);
   }
 
   // X-axis labels
@@ -120,7 +120,7 @@ window.drawHistory = function() {
   ctx.textBaseline = 'top';
   for (const tx of xTicks.ticks) {
     const x = padL + plotW * ((tx - t0) / total);
-    ctx.fillText(fmtTime(tx, HIST.hours), x, h - padB + 6 * dpr);
+    ctx.fillText(fmtTime(tx, window.HIST.hours), x, h - padB + 6 * dpr);
   }
 
   // Line
@@ -142,9 +142,9 @@ window.drawHistory = function() {
   ctx.fill();
 
   // Drag selection rectangle
-  if (HIST.dragging) {
-    const x1 = Math.min(HIST.dragStartX, HIST.dragEndX) * dpr;
-    const x2 = Math.max(HIST.dragStartX, HIST.dragEndX) * dpr;
+  if (window.HIST.dragging) {
+    const x1 = Math.min(window.HIST.dragStartX, window.HIST.dragEndX) * dpr;
+    const x2 = Math.max(window.HIST.dragStartX, window.HIST.dragEndX) * dpr;
     ctx.fillStyle = 'rgba(100,150,255,0.15)';
     ctx.fillRect(x1, padT, x2 - x1, plotH);
     ctx.strokeStyle = 'rgba(100,150,255,0.5)';
@@ -153,8 +153,8 @@ window.drawHistory = function() {
   }
 
   // Hover crosshair + dot
-  if (HIST.hoverIdx >= 0 && HIST.hoverIdx < pts.length) {
-    const p = pts[HIST.hoverIdx];
+  if (window.HIST.hoverIdx >= 0 && window.HIST.hoverIdx < pts.length) {
+    const p = pts[window.HIST.hoverIdx];
     const x = padL + plotW * ((p[0] - t0) / total);
     const y = padT + plotH * (1 - (p[1] - vMin) / (vMax - vMin));
     ctx.strokeStyle = cssVar('--sec') + '60';
@@ -178,8 +178,8 @@ function showTooltip(clientX, clientY, epoch, value) {
   tt.style.display = 'block';
   tt.style.left = Math.min(x, rect.width - 150) + 'px';
   tt.style.top = Math.max(0, y) + 'px';
-  tt.innerHTML = '<div class="tt-time">' + fmtTime(epoch, HIST.hours) + '</div>' +
-    '<div class="tt-val">' + fmtVal(value, HIST.decimals) + ' <span class="tt-unit">' + HIST.unit + '</span></div>';
+  tt.innerHTML = '<div class="tt-time">' + fmtTime(epoch, window.HIST.hours) + '</div>' +
+    '<div class="tt-val">' + fmtVal(value, window.HIST.decimals) + ' <span class="tt-unit">' + window.HIST.unit + '</span></div>';
 }
 
 function hideTooltip() {
@@ -187,15 +187,15 @@ function hideTooltip() {
 }
 
 window.resetZoom = function() {
-  HIST.viewStart = 0;
-  HIST.viewEnd = 1;
+  window.HIST.viewStart = 0;
+  window.HIST.viewEnd = 1;
   drawHistory();
 };
 
 window.zoomTo = function(fracStart, fracEnd) {
   if (fracEnd - fracStart < 0.02) return;
-  HIST.viewStart = Math.max(0, fracStart);
-  HIST.viewEnd = Math.min(1, fracEnd);
+  window.HIST.viewStart = Math.max(0, fracStart);
+  window.HIST.viewEnd = Math.min(1, fracEnd);
   drawHistory();
 };
 
@@ -205,9 +205,9 @@ window.setupChartInteractions = function() {
   canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     const rect = canvas.getBoundingClientRect();
-    HIST.dragging = true;
-    HIST.dragStartX = e.clientX - rect.left;
-    HIST.dragEndX = e.clientX - rect.left;
+    window.HIST.dragging = true;
+    window.HIST.dragStartX = e.clientX - rect.left;
+    window.HIST.dragEndX = e.clientX - rect.left;
     hideTooltip();
   });
 
@@ -215,8 +215,8 @@ window.setupChartInteractions = function() {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
 
-    if (HIST.dragging) {
-      HIST.dragEndX = mx;
+    if (window.HIST.dragging) {
+      window.HIST.dragEndX = mx;
       drawHistory();
       return;
     }
@@ -230,7 +230,7 @@ window.setupChartInteractions = function() {
     const total = t1 - t0 || 1;
 
     const frac = (mx * dpr - padL) / plotW;
-    if (frac < 0 || frac > 1) { hideTooltip(); HIST.hoverIdx = -1; drawHistory(); return; }
+    if (frac < 0 || frac > 1) { hideTooltip(); window.HIST.hoverIdx = -1; drawHistory(); return; }
 
     const targetT = t0 + total * frac;
     let best = 0, bestD = Infinity;
@@ -238,17 +238,17 @@ window.setupChartInteractions = function() {
       const d = Math.abs(pts[i][0] - targetT);
       if (d < bestD) { bestD = d; best = i; }
     }
-    HIST.hoverIdx = best;
+    window.HIST.hoverIdx = best;
     drawHistory();
     showTooltip(e.clientX, e.clientY, pts[best][0], pts[best][1]);
   });
 
   canvas.addEventListener('mouseup', e => {
-    if (!HIST.dragging) return;
-    HIST.dragging = false;
+    if (!window.HIST.dragging) return;
+    window.HIST.dragging = false;
     const rect = canvas.getBoundingClientRect();
-    const x1 = Math.min(HIST.dragStartX, HIST.dragEndX);
-    const x2 = Math.max(HIST.dragStartX, HIST.dragEndX);
+    const x1 = Math.min(window.HIST.dragStartX, window.HIST.dragEndX);
+    const x2 = Math.max(window.HIST.dragStartX, window.HIST.dragEndX);
     if (x2 - x1 < 10) { resetZoom(); return; }
     const dpr = window.devicePixelRatio || 1;
     const padL = 55 * dpr, padR = 15 * dpr;
@@ -259,8 +259,8 @@ window.setupChartInteractions = function() {
   });
 
   canvas.addEventListener('mouseleave', () => {
-    HIST.dragging = false;
-    HIST.hoverIdx = -1;
+    window.HIST.dragging = false;
+    window.HIST.hoverIdx = -1;
     hideTooltip();
     drawHistory();
   });
@@ -276,15 +276,15 @@ window.setupChartInteractions = function() {
     const plotW = canvas.width - padL - padR;
     const centerFrac = Math.max(0, Math.min(1, (mx * dpr - padL) / plotW));
     const zoomAmt = e.deltaY > 0 ? 1.2 : 0.8;
-    const span = HIST.viewEnd - HIST.viewStart;
+    const span = window.HIST.viewEnd - window.HIST.viewStart;
     const newSpan = Math.min(1, Math.max(0.02, span * zoomAmt));
-    const center = HIST.viewStart + span * centerFrac;
+    const center = window.HIST.viewStart + span * centerFrac;
     let ns = center - newSpan * centerFrac;
     let ne = center + newSpan * (1 - centerFrac);
     if (ns < 0) { ne -= ns; ns = 0; }
     if (ne > 1) { ns -= ne - 1; ne = 1; }
-    HIST.viewStart = Math.max(0, ns);
-    HIST.viewEnd = Math.min(1, ne);
+    window.HIST.viewStart = Math.max(0, ns);
+    window.HIST.viewEnd = Math.min(1, ne);
     drawHistory();
   }, { passive: false });
 };
