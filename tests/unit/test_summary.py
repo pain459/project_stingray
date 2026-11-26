@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from stingray.core.config import ThresholdsConfig
+from stingray.core.models import Measurement, MetricId, SensorId, utc_now
+from stingray.storage.parquet_store import ParquetWriter
 from stingray.summary import (
     HourlyFacts,
     MetricFacts,
@@ -14,6 +17,7 @@ from stingray.summary import (
     telegram_text,
     validate_model_payload,
 )
+from stingray.summary_job import aggregate_facts
 from stingray.summary_store import SummaryStore
 
 
@@ -84,6 +88,52 @@ class TestRules:
         )
         assert "stale_metrics" in {f.code for f in derive_findings(facts, ThresholdsConfig())}
 
+    def test_significant_hour_change_adds_finding(self) -> None:
+        facts = _facts()
+        pm = facts.metrics["pm2_5_ug_m3"]
+        facts.metrics["pm2_5_ug_m3"] = replace(pm, previous_avg=pm.avg / 2)
+        findings = derive_findings(facts, ThresholdsConfig())
+        change = next(f for f in findings if f.code == "pm2_5_ug_m3_hour_change")
+        assert "up 100%" in change.message
+        assert "previous hour" not in change.message  # wording is "last hour"
+        assert "last hour" in change.message
+
+    def test_small_hour_change_adds_no_finding(self) -> None:
+        facts = _facts()
+        pm = facts.metrics["pm2_5_ug_m3"]
+        facts.metrics["pm2_5_ug_m3"] = replace(pm, previous_avg=pm.avg / 1.05)
+        codes = {f.code for f in derive_findings(facts, ThresholdsConfig())}
+        assert "pm2_5_ug_m3_hour_change" not in codes
+
+
+class TestAggregation:
+    def test_previous_window_average_is_captured(self, tmp_path: Path) -> None:
+        end = datetime(2026, 11, 26, 22, 0, tzinfo=UTC)
+        start = end - timedelta(hours=1)
+        previous_start = start - timedelta(hours=1)
+        writer = ParquetWriter(tmp_path, batch_size=10)
+        for value, when in (
+            (20.0, previous_start + timedelta(minutes=30)),
+            (40.0, start + timedelta(minutes=30)),
+        ):
+            writer.add(
+                Measurement(
+                    sensor=SensorId.SPS30,
+                    metric=MetricId.PM2_5_UG_M3,
+                    value=value,
+                    unit="ug/m3",
+                    observed_at=when,
+                    received_at=utc_now(),
+                )
+            )
+        writer.flush()
+        facts = aggregate_facts(tmp_path, generated_at=end, hours=1)
+        pm = facts.metrics["pm2_5_ug_m3"]
+        assert pm.previous_avg == 20.0
+        assert pm.change_vs_previous_pct == 100.0
+        assert facts.previous_sample_count == 1
+        assert facts.previous_window_end == start
+
 
 class TestValidation:
     def test_accepts_supplied_number(self) -> None:
@@ -94,6 +144,22 @@ class TestValidation:
         assert not error
         assert headline == "Air quality steady"
         assert "650" in text
+
+    def test_accepts_previous_hour_number_from_facts(self) -> None:
+        facts = _facts()
+        pm = facts.metrics["pm2_5_ug_m3"]
+        facts.metrics["pm2_5_ug_m3"] = replace(pm, previous_avg=pm.avg / 2)
+        findings = derive_findings(facts, ThresholdsConfig())
+        _, text, error = validate_model_payload(
+            {
+                "headline": "Particles rose this hour",
+                "summary": f"PM2.5 averaged {pm.avg:.1f} ug/m3, up from {pm.avg / 2:.1f} ug/m3.",
+            },
+            facts,
+            findings,
+        )
+        assert not error
+        assert "up from" in text
 
     def test_rejects_invented_number(self) -> None:
         _, _, error = validate_model_payload(
@@ -158,3 +224,16 @@ class TestStore:
         assert (tmp_path / "latest.json").is_file()
         assert store.latest()["headline"] == "Steady"
         assert store.list(limit=5)[0]["headline"] == "Steady"
+
+    def test_comparison_is_persisted(self, tmp_path: Path) -> None:
+        facts = _facts()
+        pm = facts.metrics["pm2_5_ug_m3"]
+        facts.metrics["pm2_5_ug_m3"] = replace(pm, previous_avg=pm.avg / 2)
+        findings = derive_findings(facts, ThresholdsConfig())
+        summary = make_summary(facts, findings, model="test-model", payload=None)
+        payload = summary.to_jsonable()
+        assert payload["facts"]["previous_sample_count"] == 0
+        pm_json = payload["facts"]["metrics"]["pm2_5_ug_m3"]
+        assert pm_json["previous_avg"] == round(pm.avg / 2, 3)
+        assert pm_json["change_vs_previous_pct"] == 100.0
+        assert "Compared with previous hour:" in telegram_text(summary)

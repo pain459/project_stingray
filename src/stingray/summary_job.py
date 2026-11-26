@@ -46,9 +46,10 @@ def aggregate_facts(
     generated_at: datetime,
     hours: float,
 ) -> HourlyFacts:
-    """Aggregate the trailing window into a small, fixed-size fact object."""
+    """Aggregate the current and previous trailing windows into fact objects."""
     generated_at = generated_at.astimezone(UTC)
     start = generated_at - timedelta(hours=hours)
+    previous_start = start - timedelta(hours=hours)
     base = Path(parquet_path)
     glob = str(base / "**" / "*.parquet")
     sql = f"""
@@ -67,13 +68,21 @@ def aggregate_facts(
         ORDER BY metric
     """
     con = duckdb.connect()
-    rows: list[tuple[Any, ...]] = []
+    current_rows: list[tuple[Any, ...]] = []
+    previous_rows: list[tuple[Any, ...]] = []
     try:
-        rows = con.execute(sql, [start.timestamp(), generated_at.timestamp()]).fetchall()
+        current_rows = con.execute(sql, [start.timestamp(), generated_at.timestamp()]).fetchall()
+        previous_rows = con.execute(sql, [previous_start.timestamp(), start.timestamp()]).fetchall()
     except Exception as exc:  # noqa: BLE001 - no/malformed parquet files yet
         log.warning("summary aggregation returned no data: %s", type(exc).__name__)
     finally:
         con.close()
+
+    previous: dict[str, tuple[float, int]] = {}
+    for metric, _unit, count, avg_value, *_rest in previous_rows:
+        if not metric or count is None or avg_value is None:
+            continue
+        previous[str(metric)] = (float(avg_value), int(count))
 
     metrics: dict[str, MetricFacts] = {}
     for (
@@ -86,9 +95,10 @@ def aggregate_facts(
         first_value,
         last_value,
         last_epoch,
-    ) in rows:
+    ) in current_rows:
         if not metric or count is None:
             continue
+        prior = previous.get(str(metric))
         metrics[str(metric)] = MetricFacts(
             metric=str(metric),
             unit=str(unit),
@@ -99,6 +109,7 @@ def aggregate_facts(
             first=float(first_value),
             last=float(last_value),
             last_seen=datetime.fromtimestamp(float(last_epoch), tz=UTC),
+            previous_avg=prior[0] if prior else None,
         )
     return HourlyFacts(
         generated_at=generated_at,
@@ -106,6 +117,9 @@ def aggregate_facts(
         window_end=generated_at,
         sample_count=sum(f.count for f in metrics.values()),
         metrics=metrics,
+        previous_window_start=previous_start,
+        previous_window_end=start,
+        previous_sample_count=sum(count for _avg, count in previous.values()),
     )
 
 

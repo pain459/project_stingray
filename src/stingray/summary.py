@@ -57,12 +57,20 @@ class MetricFacts:
     first: float
     last: float
     last_seen: datetime
+    previous_avg: float | None = None
 
     @property
     def change_pct(self) -> float | None:
         if self.first == 0:
             return None
         return (self.last - self.first) / abs(self.first) * 100.0
+
+    @property
+    def change_vs_previous_pct(self) -> float | None:
+        """Change in this hour's average versus the previous hour's average."""
+        if self.previous_avg is None or self.previous_avg == 0:
+            return None
+        return (self.avg - self.previous_avg) / abs(self.previous_avg) * 100.0
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,9 @@ class HourlyFacts:
     window_end: datetime
     sample_count: int
     metrics: dict[str, MetricFacts] = field(default_factory=dict)
+    previous_window_start: datetime | None = None
+    previous_window_end: datetime | None = None
+    previous_sample_count: int = 0
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -81,6 +92,13 @@ class HourlyFacts:
             "window_start": self.window_start.isoformat(),
             "window_end": self.window_end.isoformat(),
             "sample_count": self.sample_count,
+            "previous_window_start": (
+                self.previous_window_start.isoformat() if self.previous_window_start else None
+            ),
+            "previous_window_end": (
+                self.previous_window_end.isoformat() if self.previous_window_end else None
+            ),
+            "previous_sample_count": self.previous_sample_count,
             "metrics": {
                 name: {
                     "unit": f.unit,
@@ -91,6 +109,12 @@ class HourlyFacts:
                     "first": round(f.first, 3),
                     "last": round(f.last, 3),
                     "change_pct": None if f.change_pct is None else round(f.change_pct, 1),
+                    "previous_avg": (None if f.previous_avg is None else round(f.previous_avg, 3)),
+                    "change_vs_previous_pct": (
+                        None
+                        if f.change_vs_previous_pct is None
+                        else round(f.change_vs_previous_pct, 1)
+                    ),
                     "last_seen": f.last_seen.isoformat(),
                 }
                 for name, f in sorted(self.metrics.items())
@@ -235,6 +259,28 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
                 "Keep the current ventilation plan under review over the next hour.",
             )
 
+    for metric, label in (
+        ("pm2_5_ug_m3", "PM2.5"),
+        ("co2_ppm", "CO2"),
+        ("voc_index", "VOC"),
+        ("nox_index", "NOx"),
+    ):
+        f = facts.metrics.get(metric)
+        if f is None or f.previous_avg is None or f.change_vs_previous_pct is None:
+            continue
+        pct = f.change_vs_previous_pct
+        if abs(pct) < 25.0:
+            continue
+        direction = "up" if pct > 0 else "down"
+        digits = 0 if metric == "co2_ppm" else 1
+        add(
+            f"{metric}_hour_change",
+            "info",
+            f"{label} averaged {_fmt(f.avg, digits)} {f.unit} this hour, {direction} "
+            f"{abs(pct):.0f}% from {_fmt(f.previous_avg, digits)} {f.unit} last hour.",
+            "Track the hour-to-hour change and adjust ventilation if it continues.",
+        )
+
     stale = [
         name
         for name, f in sorted(facts.metrics.items())
@@ -275,6 +321,18 @@ def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
         if f is None:
             continue
         lines.append(f"- {key}: avg {_fmt(f.avg)}, peak {_fmt(f.maximum)} {f.unit}")
+    comparisons: list[str] = []
+    for key in keys:
+        f = facts.metrics.get(key)
+        if f is None or f.previous_avg is None or f.change_vs_previous_pct is None:
+            continue
+        comparisons.append(
+            f"- {key}: last hour avg {_fmt(f.previous_avg)}, this hour "
+            f"{_fmt(f.avg)} ({f.change_vs_previous_pct:+.0f}%)"
+        )
+    if comparisons:
+        lines.append("Compared with previous hour:")
+        lines.extend(comparisons)
     lines.append("Findings:")
     for finding in findings:
         lines.append(f"- {finding.message}")
@@ -290,12 +348,15 @@ def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
     return "\n".join(lines)
 
 
-def _allowed_number_tokens(
-    facts: HourlyFacts, findings: list[Finding] | None = None
-) -> set[str]:
+def _allowed_number_tokens(facts: HourlyFacts, findings: list[Finding] | None = None) -> set[str]:
     tokens: set[str] = {str(int(facts.window_end.timestamp())), "1"}
     for f in facts.metrics.values():
-        for value in (f.avg, f.minimum, f.maximum, f.first, f.last, f.change_pct or 0.0):
+        values = [f.avg, f.minimum, f.maximum, f.first, f.last, f.change_pct or 0.0]
+        if f.previous_avg is not None:
+            values.append(f.previous_avg)
+        if f.change_vs_previous_pct is not None:
+            values.append(f.change_vs_previous_pct)
+        for value in values:
             for digits in (0, 1, 2, 3):
                 tokens.add(_fmt(value, digits))
             tokens.add(str(int(round(value))))
@@ -339,8 +400,7 @@ def validate_model_payload(
     if any(word in low for word in _FORBIDDEN_CLAIMS):
         return "", "", "model response contained a medical claim"
     if any(
-        phrase in low
-        for phrase in ("short headline", "two short sentences", "short status line")
+        phrase in low for phrase in ("short headline", "two short sentences", "short status line")
     ):
         return "", "", "model response copied the example template"
     allowed = _allowed_number_tokens(facts, findings)
@@ -410,6 +470,10 @@ def make_summary(
 def telegram_text(summary: Summary) -> str:
     """Render a plain-text Telegram message from a validated Summary."""
     lines = ["Stingray hourly air-quality summary", "", summary.headline, "", summary.text]
+    changes = [f.message for f in summary.findings if f.code.endswith("_hour_change")]
+    if changes:
+        lines.extend(["", "Compared with previous hour:"])
+        lines.extend(f"- {message}" for message in changes)
     if summary.actions:
         lines.extend(["", "Recommended practices:"])
         lines.extend(f"- {action}" for action in summary.actions)

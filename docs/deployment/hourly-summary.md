@@ -6,6 +6,13 @@ Ollama model only phrases those findings. Every numeric value in the model
 output is checked against the aggregate it was given, and invalid output is
 replaced with deterministic text.
 
+Each run also aggregates the **preceding** hour alongside the current one. Every
+metric in the JSON document carries `previous_avg` and
+`change_vs_previous_pct`, so hour-over-hour movement is visible even when no
+threshold is crossed. Significant changes (25% or more in PM2.5, CO₂, VOC or
+NOx) add a deterministic `*_hour_change` finding; the comparison is included in
+the model prompt, the dashboard card, and the Telegram message.
+
 ## Files
 
 - `src/stingray/summary_job.py` — CLI entry point (`python -m stingray.summary_job`).
