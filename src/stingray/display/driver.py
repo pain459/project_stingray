@@ -94,20 +94,20 @@ class ILI9341Driver:
         # Display off
         self._write_cmd(0x28)
 
-        # Memory access mode - portrait mode (240x320)
-        # MADCTL 0x00 = No swap (native portrait orientation)
+        # Memory access mode - landscape mode (320x240)
+        # MADCTL 0x28 = MV|BGR (row/column exchange + BGR color order)
         self._write_cmd(0x36)
-        self._write_data(bytes([0x00]))
+        self._write_data(bytes([0x28]))
 
         # Pixel format 16-bit
         self._write_cmd(0x3A)
         self._write_data(bytes([0x05]))
 
-        # Set address window to full screen (240x320)
+        # Set address window to full screen (320x240)
         self._write_cmd(0x2A)
-        self._write_data(bytes([0x00, 0x00, 0x00, 0xEF]))  # 240 wide
+        self._write_data(bytes([0x00, 0x00, 0x01, 0x3F]))  # 320 wide
         self._write_cmd(0x2B)
-        self._write_data(bytes([0x00, 0x00, 0x01, 0x3F]))  # 320 tall
+        self._write_data(bytes([0x00, 0x00, 0x00, 0xEF]))  # 240 tall
 
         # Display on
         self._write_cmd(0x29)
@@ -145,4 +145,4 @@ class ILI9341Driver:
 
     def fill_screen(self, color: tuple[int, int, int]) -> None:
         """Fill the entire screen with a color."""
-        self.fill_rectangle(0, 0, 240, 320, color)
+        self.fill_rectangle(0, 0, 320, 240, color)
