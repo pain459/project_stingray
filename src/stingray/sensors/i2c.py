@@ -110,7 +110,7 @@ class Smbus2Transport:
     def read(self, address: int, length: int) -> list[int]:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        data = self._bus.read(address, length)
+        data = self._bus.read_i2c_block_data(address, 0, length)
         return [int(b) for b in data]
 
     def close(self) -> None:
