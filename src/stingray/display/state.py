@@ -1,47 +1,47 @@
 """Display state snapshot for the V1.8 dashboard.
 
-Immutable snapshot of sensor data for display rendering.
+Immutable snapshot of formatted sensor data for display rendering.
 """
 
 from dataclasses import dataclass
 from typing import Optional
 
+from .colors import DisplayLevel
+
 
 @dataclass(frozen=True)
 class DisplayState:
-    """Immutable snapshot of sensor data for display."""
+    """Immutable snapshot of formatted sensor data for display."""
     
-    # SPS30 metrics
-    pm1: Optional[float] = None
-    pm25: Optional[float] = None
-    pm4: Optional[float] = None
-    pm10: Optional[float] = None
-    tps: Optional[float] = None
-    sps30_online: bool = False
-    sps30_has_reading: bool = False
+    # Header
+    date: str = ""
+    time: str = ""
     
-    # SCD4x metrics
-    co2: Optional[float] = None
-    scd4x_online: bool = False
-    scd4x_has_reading: bool = False
+    # Status
+    status_text: str = "AIR QUALITY: --"
+    overall_level: DisplayLevel = DisplayLevel.NEUTRAL
     
-    # SHT45 metrics (authoritative for temp/humidity)
-    temperature: Optional[float] = None
-    humidity: Optional[float] = None
-    sht45_online: bool = False
-    sht45_has_reading: bool = False
+    # Sensor values (formatted strings)
+    pm1: str = "--"
+    pm25: str = "--"
+    pm4: str = "--"
+    pm10: str = "--"
+    co2: str = "--"
+    voc: str = "--"
+    nox: str = "--"
+    temperature: str = "--"
+    humidity: str = "--"
+    tps: str = "--"
     
-    # SGP41 metrics
-    voc: Optional[float] = None
-    nox: Optional[float] = None
-    sgp41_online: bool = False
-    sgp41_has_reading: bool = False
+    # Severity levels for each sensor
+    pm1_level: DisplayLevel = DisplayLevel.NEUTRAL
+    pm25_level: DisplayLevel = DisplayLevel.NEUTRAL
+    pm4_level: DisplayLevel = DisplayLevel.NEUTRAL
+    pm10_level: DisplayLevel = DisplayLevel.NEUTRAL
+    co2_level: DisplayLevel = DisplayLevel.NEUTRAL
+    voc_level: DisplayLevel = DisplayLevel.NEUTRAL
+    nox_level: DisplayLevel = DisplayLevel.NEUTRAL
     
-    # Configuration
-    pm25_threshold: float = 35.0
-    pm10_threshold: float = 50.0
-    
-    # System info
-    hostname: str = "stingray.local"
+    # Footer
     wifi_rssi: Optional[int] = None
-    last_update_age_seconds: Optional[float] = None
+    measurement_age: Optional[int] = None
