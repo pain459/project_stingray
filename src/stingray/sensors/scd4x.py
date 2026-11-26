@@ -116,6 +116,10 @@ class SCD4X(SensorDriver):
             self._bus = Smbus2Transport(self._bus_number)
 
         try:
+            # Stop any ongoing measurement first (safe to call even if not measuring)
+            self._write_command(CMD_STOP_PERIODIC_MEASUREMENT)
+            time.sleep(0.01)
+
             # Check if sensor is present by reading sensor variant
             variant = self._read_variant()
             logger.info(
