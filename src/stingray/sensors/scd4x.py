@@ -149,8 +149,10 @@ class SCD4X(SensorDriver):
             self._write_command(CMD_GET_DATA_READY_STATUS)
             time.sleep(0.001)
             raw = self._require_bus().read(self._address, 3)
-            # Data ready status is in the first byte (bit 0)
-            return bool(raw[0] & 0x01)
+            # Data ready status is in the first 12 bits (bits 0-11)
+            # If any bit is set, data is available
+            status = raw[0] | (raw[1] << 8)
+            return bool(status & 0x07FF)
         except (OSError, SensorReadError):
             return False
 
