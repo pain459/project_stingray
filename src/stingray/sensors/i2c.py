@@ -13,6 +13,9 @@ against a fake bus.
 from __future__ import annotations
 
 import errno
+import fcntl
+import os
+import struct
 from contextlib import suppress
 from typing import Any, Protocol
 
@@ -105,19 +108,17 @@ class Smbus2Transport:
     def write_block(self, address: int, data: list[int]) -> None:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        # Use i2c_rdwr for a raw I2C write (no extra register byte).
-        # I2C_M_RD = 0x01, so address | 0x00 = write direction.
-        msg = [address << 1] + [b & 0xFF for b in data]
-        self._bus.i2c_rdwr(msg)
+        # Use raw os.write on the bus fd with I2C_SLAVE_FORCE to send
+        # exactly the bytes we want (no extra register byte).
+        fcntl.ioctl(self._bus.fd, 0x0706, struct.pack("i", address))
+        os.write(self._bus.fd, bytes(b & 0xFF for b in data))
 
     def read(self, address: int, length: int) -> list[int]:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        # Use i2c_rdwr for a raw I2C read (no extra register byte).
-        # I2C_M_RD = 0x01, so address | 0x01 = read direction.
-        msg = [address << 1 | 0x01, length]
-        self._bus.i2c_rdwr(msg)
-        return [int(b) for b in msg[2 : 2 + length]]
+        fcntl.ioctl(self._bus.fd, 0x0706, struct.pack("i", address))
+        data = os.read(self._bus.fd, length)
+        return [int(b) for b in data]
 
     def close(self) -> None:
         bus = self._bus
