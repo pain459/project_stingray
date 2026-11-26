@@ -30,6 +30,7 @@ from stingray.sensors.sgp41 import SGP41
 from stingray.sensors.sht45 import SHT45
 from stingray.sensors.sps30 import SPS30
 from stingray.storage.parquet_store import ParquetWriter, apply_retention
+from stingray.summary_refresh import SummaryRefresher
 
 log = logging.getLogger("stingray")
 
@@ -187,12 +188,14 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     network = get_network_info()
 
     # Start the dashboard API server (unauthenticated, internal use).
+    refresher = SummaryRefresher(config) if config.summary.enabled else None
     api_state = ApiState(
         scheduler,
         storage_path,
         mode=config.mode,
         network=network,
         summaries_path=config.summary.path,
+        refresher=refresher,
     )
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 

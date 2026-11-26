@@ -16,11 +16,15 @@ the model prompt, the dashboard card, and the Telegram message.
 ## Files
 
 - `src/stingray/summary_job.py` — CLI entry point (`python -m stingray.summary_job`).
-- `src/stingray/summary.py` — rules, prompt, validation, Telegram rendering.
+- `src/stingray/summary.py` — rules, prompt, validation, Telegram rendering (plain text and HTML).
+- `src/stingray/summary_job.py` — CLI entry point and Telegram sender.
+- `src/stingray/summary_refresh.py` — on-demand trigger, persistent cooldown, background worker.
 - `src/stingray/summary_store.py` — JSON/text summary storage.
 - `deploy/stingray-hourly-summary.service` / `.timer` — hourly systemd units.
-- `/mnt/stingray/summaries` — live summary documents and `latest.json`.
+- `deploy/stingray-telegram.conf` — systemd drop-in giving the dashboard service Telegram credentials.
+- `/mnt/stingray/summaries` — live summary documents, `latest.json`, and `.refresh_state.json`.
 - `GET /api/summaries` and `GET /api/summaries/latest` — dashboard API.
+- `POST /api/summaries/refresh` — on-demand summary trigger (rate-limited).
 
 ## One-time setup on `stingray`
 
@@ -63,6 +67,56 @@ sudo systemctl restart stingray-hourly-summary.timer
 ```
 
 To send to a different chat, change only `STINGRAY_TELEGRAM_CHAT_ID`.
+
+The dashboard service needs the same credentials for the **Generate now** button.
+Do not make the root-owned env file readable by `monusr`; use a systemd drop-in
+instead. systemd reads the file as root and injects the variables into the
+service process:
+
+```sh
+cd /home/ravik/src_git/project_stingray
+sudo install -d -m 0755 /etc/systemd/system/stingray.service.d
+sudo install -m 0644 deploy/stingray-telegram.conf /etc/systemd/system/stingray.service.d/telegram.conf
+sudo systemctl daemon-reload
+sudo systemctl restart stingray.service
+```
+
+If the drop-in is missing, on-demand summaries still generate and save locally,
+but the API log records that Telegram was skipped because credentials were
+unavailable.
+
+## On-demand dashboard refresh
+
+The **Generate now** button in the hourly summary card sends
+`POST /api/summaries/refresh`. The API starts a background thread that runs the
+same pipeline as the hourly job (Parquet aggregate → deterministic rules →
+local Ollama → save → Telegram) and answers immediately:
+
+| Status | Meaning |
+|---|---|
+| `202` | Run accepted; `next_allowed_at` gives the cooldown deadline. |
+| `409` | Another refresh is already running. |
+| `429` | Cooldown active; `retry_after_seconds` is returned. |
+| `503` | Summary refresh is not configured. |
+
+The default cooldown is 600 seconds (`summary.refresh_cooldown_seconds` in
+`config/application.combined.yaml`). It is enforced server-side and persisted
+in `/mnt/stingray/summaries/.refresh_state.json`, so restarting the dashboard
+service cannot reset it. The button shows a live countdown from the server's
+`next_allowed_at` value.
+
+## Telegram and dashboard formatting
+
+Telegram messages use HTML parse mode: bold section headers, `•` bullets, and
+one self-contained tag per line so long messages can be split at line
+boundaries without breaking markup. Dynamic text is HTML-escaped. Sections are
+ordered: values (avg/min/max), previous-hour comparison, notes, recommended
+practices, and a window/model footer. The stored `.txt` mirror keeps the same
+content in plain text.
+
+The dashboard card shows the same values as compact metric tiles with a
+previous-hour change badge, plus separate Notes and Recommended practices
+lists.
 
 ## Manual runs
 

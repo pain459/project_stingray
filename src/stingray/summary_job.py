@@ -33,7 +33,7 @@ from stingray.summary import (
     build_prompt,
     derive_findings,
     make_summary,
-    telegram_text,
+    telegram_html,
 )
 from stingray.summary_store import SummaryStore
 
@@ -236,16 +236,31 @@ def split_telegram_text(text: str, limit: int = 3900) -> list[str]:
 
 
 def send_telegram(
-    bot_token: str, chat_id: str, text: str, *, timeout_seconds: float = 20.0
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    *,
+    timeout_seconds: float = 20.0,
+    parse_mode: str = "HTML",
 ) -> None:
-    """Send a plain-text Telegram message. Never log the token or full URL."""
+    """Send a Telegram message. Never log the token or full URL.
+
+    ``text`` is already rendered for the selected parse mode (HTML by default).
+    Long messages are split at line boundaries; the renderer keeps each tag on
+    one line so every part stays valid markup.
+    """
     token = quote_token(bot_token)
     endpoint = f"https://api.telegram.org/bot{token}/sendMessage"
     parts = split_telegram_text(text)
     for index, part in enumerate(parts, start=1):
         body_text = part if len(parts) == 1 else f"{part}\n\n(part {index}/{len(parts)})"
         payload = json.dumps(
-            {"chat_id": chat_id, "text": body_text, "disable_web_page_preview": True}
+            {
+                "chat_id": chat_id,
+                "text": body_text,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": True,
+            }
         ).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
@@ -377,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Telegram skipped: credentials are unset in the environment")
         return 0
     try:
-        send_telegram(token, chat_id, telegram_text(summary))
+        send_telegram(token, chat_id, telegram_html(summary))
     except RuntimeError as exc:
         print(f"Telegram send failed: {exc}", file=sys.stderr)
         return 1

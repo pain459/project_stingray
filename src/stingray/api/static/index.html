@@ -98,11 +98,21 @@
 </div>
 
 <div class="section">
-  <h2>Hourly summary</h2>
+  <div class="summary-head">
+    <h2>Hourly summary</h2>
+    <div class="summary-controls">
+      <span class="summary-cooldown" id="summaryCooldown"></span>
+      <button type="button" id="summaryRefresh" class="summary-refresh">Generate now</button>
+    </div>
+  </div>
   <div class="section-note" id="summaryMeta">Waiting for the first hourly summary...</div>
   <div class="summary-headline" id="summaryHeadline">--</div>
   <div class="summary-text" id="summaryText">No summary has been generated yet.</div>
+  <div class="summary-values" id="summaryValues"></div>
   <div class="summary-compare" id="summaryCompare"></div>
+  <div class="summary-subtitle">Notes</div>
+  <ul class="summary-notes" id="summaryNotes"></ul>
+  <div class="summary-subtitle">Recommended practices</div>
   <ul class="summary-actions" id="summaryActions"></ul>
 </div>
 
@@ -122,14 +132,14 @@
 
 <div class="section">
   <h2>API cadence</h2>
-  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary</div>
+  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary · POST /api/summaries/refresh → on-demand summary (10 min cooldown)</div>
 </div>
 
 </div>
 <script src="js/chart.js?v=6"></script>
-<script src="js/history.js?v=8"></script>
-<script src="js/live.js?v=8"></script>
-<script src="js/summary.js?v=8"></script>
-<script src="js/app.js?v=8"></script>
+<script src="js/history.js?v=9"></script>
+<script src="js/live.js?v=9"></script>
+<script src="js/summary.js?v=9"></script>
+<script src="js/app.js?v=9"></script>
 </body>
 </html>

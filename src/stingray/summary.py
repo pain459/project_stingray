@@ -7,6 +7,7 @@ values, thresholds, actions, or medical claims.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -478,6 +479,51 @@ def make_summary(
     )
 
 
+def _telegram_blocks(summary: Summary) -> dict[str, list[str]]:
+    """Shared section content for the plain-text and HTML Telegram renderers."""
+    values: list[str] = []
+    shown: set[str] = set()
+    for key, label, digits in _TELEGRAM_METRICS:
+        f = summary.facts.metrics.get(key)
+        if f is None:
+            continue
+        shown.add(key)
+        values.append(
+            f"{label}: avg {_fmt(f.avg, digits)}, min {_fmt(f.minimum, digits)}, "
+            f"max {_fmt(f.maximum, digits)} {f.unit}"
+        )
+    for key, f in sorted(summary.facts.metrics.items()):
+        if key in shown:
+            continue
+        values.append(
+            f"{f.metric}: avg {_fmt(f.avg)}, min {_fmt(f.minimum)}, max {_fmt(f.maximum)} {f.unit}"
+        )
+    return {
+        "values": values,
+        "comparison": [f.message for f in summary.findings if f.code.endswith("_hour_change")],
+        "notes": [f.message for f in summary.findings if not f.code.endswith("_hour_change")],
+        "actions": list(summary.actions),
+    }
+
+
+_TELEGRAM_SECTIONS = (
+    ("Values (last hour):", "values"),
+    ("Compared with previous hour:", "comparison"),
+    ("Notes:", "notes"),
+    ("Recommended practices:", "actions"),
+)
+
+
+def _telegram_footer(summary: Summary) -> list[str]:
+    local = summary.generated_at.astimezone()
+    return [
+        f"Window: {summary.facts.window_start.astimezone():%H:%M} to "
+        f"{summary.facts.window_end.astimezone():%H:%M}",
+        f"Model: {summary.model}{'' if summary.model_used else ' (fallback used)'}",
+        f"Generated: {local:%Y-%m-%d %H:%M %Z}",
+    ]
+
+
 def telegram_text(summary: Summary) -> str:
     """Render a plain-text Telegram message from a validated Summary.
 
@@ -486,47 +532,35 @@ def telegram_text(summary: Summary) -> str:
     long messages into readable parts at line boundaries.
     """
     lines = ["Stingray hourly air-quality summary", "", summary.headline, "", summary.text]
+    blocks = _telegram_blocks(summary)
+    for heading, key in _TELEGRAM_SECTIONS:
+        if blocks[key]:
+            lines.extend(["", heading])
+            lines.extend(f"- {item}" for item in blocks[key])
+    lines.extend(["", *_telegram_footer(summary)])
+    return "\n".join(lines)
 
-    lines.extend(["", "Values (last hour):"])
-    shown: set[str] = set()
-    for key, label, digits in _TELEGRAM_METRICS:
-        f = summary.facts.metrics.get(key)
-        if f is None:
+
+def telegram_html(summary: Summary) -> str:
+    """Render the same summary with Telegram-safe HTML formatting.
+
+    Every tag is opened and closed on one line, so splitting a long message at
+    line boundaries cannot leave an unclosed tag in either part. Dynamic text
+    is escaped; no model output is inserted as raw markup.
+    """
+    esc = html.escape
+    lines = [
+        "<b>Stingray hourly air-quality summary</b>",
+        "",
+        f"<b>{esc(summary.headline)}</b>",
+        "",
+        esc(summary.text),
+    ]
+    blocks = _telegram_blocks(summary)
+    for heading, key in _TELEGRAM_SECTIONS:
+        if not blocks[key]:
             continue
-        shown.add(key)
-        lines.append(
-            f"- {label}: avg {_fmt(f.avg, digits)}, min {_fmt(f.minimum, digits)}, "
-            f"max {_fmt(f.maximum, digits)} {f.unit}"
-        )
-    for key, f in sorted(summary.facts.metrics.items()):
-        if key in shown:
-            continue
-        lines.append(
-            f"- {f.metric}: avg {_fmt(f.avg)}, min {_fmt(f.minimum)}, "
-            f"max {_fmt(f.maximum)} {f.unit}"
-        )
-
-    changes = [f.message for f in summary.findings if f.code.endswith("_hour_change")]
-    if changes:
-        lines.extend(["", "Compared with previous hour:"])
-        lines.extend(f"- {message}" for message in changes)
-
-    notes = [f.message for f in summary.findings if not f.code.endswith("_hour_change")]
-    if notes:
-        lines.extend(["", "Notes:"])
-        lines.extend(f"- {message}" for message in notes)
-
-    if summary.actions:
-        lines.extend(["", "Recommended practices:"])
-        lines.extend(f"- {action}" for action in summary.actions)
-    local = summary.generated_at.astimezone()
-    lines.extend(
-        [
-            "",
-            f"Window: {summary.facts.window_start.astimezone():%H:%M} to "
-            f"{summary.facts.window_end.astimezone():%H:%M}",
-            f"Model: {summary.model}{'' if summary.model_used else ' (fallback used)'}",
-            f"Generated: {local:%Y-%m-%d %H:%M %Z}",
-        ]
-    )
+        lines.extend(["", f"<b>{esc(heading)}</b>"])
+        lines.extend(f"• {esc(item)}" for item in blocks[key])
+    lines.extend(["", f"<i>{esc(' · '.join(_telegram_footer(summary)))}</i>"])
     return "\n".join(lines)

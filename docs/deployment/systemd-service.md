@@ -117,6 +117,19 @@ SyslogIdentifier=stingray
 WantedBy=multi-user.target
 ```
 
+For the dashboard's on-demand summary button to send Telegram messages, add a
+drop-in rather than making the credentials file readable by `monusr`:
+
+```sh
+sudo install -d -m 0755 /etc/systemd/system/stingray.service.d
+sudo install -m 0644 /home/ravik/src_git/project_stingray/deploy/stingray-telegram.conf \
+  /etc/systemd/system/stingray.service.d/telegram.conf
+sudo systemctl daemon-reload
+sudo systemctl restart stingray.service
+```
+
+See `docs/deployment/hourly-summary.md` for the credentials file itself.
+
 ### Key settings
 
 | Setting | Value | Purpose |

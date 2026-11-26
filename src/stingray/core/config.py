@@ -79,6 +79,8 @@ class SummaryConfig(BaseModel):
     model: str = "qwen2.5:0.5b"
     ollama_url: str = "http://127.0.0.1:11434"
     hours: float = Field(default=1.0, gt=0)
+    #: Minimum seconds between UI-triggered summary runs.
+    refresh_cooldown_seconds: int = Field(default=600, ge=0)
 
 
 class DisplayConfig(BaseModel):

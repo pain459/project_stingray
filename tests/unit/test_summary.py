@@ -14,6 +14,7 @@ from stingray.summary import (
     MetricFacts,
     derive_findings,
     make_summary,
+    telegram_html,
     telegram_text,
     validate_model_payload,
 )
@@ -229,6 +230,37 @@ class TestTelegram:
             < text.index("Notes:")
             < text.index("Recommended practices:")
         )
+
+    def test_html_is_formatted_and_escaped(self) -> None:
+        facts = _facts(pm2_5_ug_m3=40.0)
+        findings = derive_findings(facts, ThresholdsConfig())
+        summary = make_summary(
+            facts,
+            findings,
+            model="test-model",
+            payload={"headline": "Air <b>good</b>", "summary": "Values & trends."},
+        )
+        html_text = telegram_html(summary)
+        assert "<b>Stingray hourly air-quality summary</b>" in html_text
+        assert "<b>Values (last hour):</b>" in html_text
+        assert "Air &lt;b&gt;good&lt;/b&gt;" in html_text
+        assert "Values &amp; trends." in html_text
+        assert all(line.count("<") == line.count(">") for line in html_text.splitlines())
+
+    def test_html_split_keeps_tags_balanced(self) -> None:
+        facts = _facts(pm2_5_ug_m3=40.0)
+        findings = derive_findings(facts, ThresholdsConfig())
+        summary = make_summary(
+            facts,
+            findings,
+            model="test-model",
+            payload={"headline": "Headline", "summary": "Summary."},
+        )
+        parts = split_telegram_text(telegram_html(summary), limit=200)
+        assert len(parts) > 1
+        for part in parts:
+            assert part.count("<b>") == part.count("</b>")
+            assert part.count("<i>") == part.count("</i>")
 
     def test_long_text_is_split_without_loss(self) -> None:
         text = "\n".join(f"line {i:03d} " + "x" * 20 for i in range(300))

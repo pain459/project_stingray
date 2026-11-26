@@ -10,6 +10,7 @@ Endpoints:
     GET /api/history -> recent measurements (for sparklines)
     GET /api/health  -> process + scheduler health
     GET /api/summaries -> recent hourly LLM summaries
+    POST /api/summaries/refresh -> start an on-demand summary (rate-limited)
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from stingray.core.models import SensorId
 from stingray.core.network import NetworkInfo, as_dict
 from stingray.core.scheduler import SensorScheduler
 from stingray.storage.parquet_store import ParquetQuery
+from stingray.summary_refresh import SummaryRefresher
 from stingray.summary_store import SummaryStore
 
 log = logging.getLogger("stingray.api")
@@ -63,6 +65,7 @@ class ApiState:
         start_time: float | None = None,
         network: NetworkInfo | None = None,
         summaries_path: str | Path | None = None,
+        refresher: SummaryRefresher | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.db_path = db_path
@@ -70,6 +73,7 @@ class ApiState:
         self.start_time = start_time if start_time is not None else time.monotonic()
         self.network = network
         self.summaries_path = Path(summaries_path) if summaries_path is not None else None
+        self.refresher = refresher
         self._lock = threading.Lock()
 
     def uptime_seconds(self) -> float:
@@ -127,6 +131,14 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._serve_latest_summary()
         elif path.startswith("/css/") or path.startswith("/js/"):
             self._serve_static(path)
+        else:
+            _json_response(self, 404, {"error": "not found"})
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        if path == "/api/summaries/refresh":
+            self._serve_refresh()
         else:
             _json_response(self, 404, {"error": "not found"})
 
@@ -249,10 +261,26 @@ class ApiHandler(BaseHTTPRequestHandler):
         )
 
     def _serve_latest_summary(self) -> None:
-        """Return the most recent hourly summary, if one exists."""
+        """Return the most recent hourly summary plus refresh cooldown state."""
         store = self._summaries_store()
         summary = store.latest() if store is not None else None
-        _json_response(self, 200, {"summary": summary})
+        _json_response(
+            self,
+            200,
+            {
+                "summary": summary,
+                "refresh": self.state.refresher.status() if self.state.refresher else None,
+            },
+        )
+
+    def _serve_refresh(self) -> None:
+        """Start an on-demand summary run, enforcing the server-side cooldown."""
+        refresher = self.state.refresher
+        if refresher is None:
+            _json_response(self, 503, {"error": "summary refresh is not configured"})
+            return
+        status, payload = refresher.trigger()
+        _json_response(self, status, payload)
 
     def _serve_health(self) -> None:
         """Process and scheduler health."""
