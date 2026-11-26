@@ -26,12 +26,12 @@ sensors:
     i2c_bus: 1
   sgp41:
     address: 89
-    cadence_seconds: 5
+    cadence_seconds: 1
     enabled: true
     i2c_bus: 1
   sht45:
     address: 68
-    cadence_seconds: 5
+    cadence_seconds: 1
     enabled: true
     i2c_bus: 1
   sps30:

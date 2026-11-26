@@ -215,6 +215,36 @@ class SHT45(SensorDriver):
             "" if self._serial is None else f" (serial 0x{self._serial:08X})",
         )
 
+    def sample(self) -> tuple[float, float]:
+        """Return a fresh ``(temperature_c, rh_percent)`` pair.
+
+        This is the authoritative compensation source for the SGP41 driver. It
+        performs the same validated measurement as :meth:`read` but skips the
+        ``Measurement`` objects, because the values are consumed internally
+        rather than published as SHT4x readings a second time.
+        """
+        if self._closed:
+            raise SensorReadError("sht45: driver is closed")
+        if not self._initialized:
+            raise SensorInitError("sht45: driver not initialized")
+        try:
+            temperature_c, humidity_percent = self._sample()
+        except SensorError:
+            self._consecutive_failures += 1
+            raise
+        except OSError as exc:
+            self._consecutive_failures += 1
+            if is_disconnect_error(exc):
+                self._disconnected = True
+                raise SensorDisconnectedError(
+                    f"sht45: no device at 0x{self._address:02X} on bus {self._bus_number}: {exc}"
+                ) from exc
+            raise SensorReadError(f"sht45: I2C transfer failed: {exc}") from exc
+        self._disconnected = False
+        self._consecutive_failures = 0
+        self._last_read_wall = utc_now()
+        return temperature_c, humidity_percent
+
     def read(self) -> Iterator[Measurement]:
         """Perform one measurement, yielding temperature then humidity."""
         if self._closed:

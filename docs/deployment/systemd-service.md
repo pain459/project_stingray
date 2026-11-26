@@ -268,6 +268,40 @@ systemctl status stingray
 journalctl -u stingray --no-pager -n 20
 ```
 
+## Validating the SHT4x + SGP41 module
+
+The combined SHT4x (T/RH) and SGP41 (VOC/NOx) module shares the I2C bus with
+the SPS30 and SCD4X. Use the standalone script when bringing up or replacing
+the module. **Stop the service first**: two processes issuing command-then-read
+transactions on the same bus interleave and produce spurious `EIO` errors.
+
+```sh
+sudo systemctl stop stingray
+cd /home/ravik/src_git/project_stingray
+.venv/bin/python scripts/validate_gas_sensors.py --seconds 1800
+sudo systemctl start stingray
+```
+
+The script refreshes once per second and prints, for every cycle, both sensor
+ONLINE states, temperature, humidity, raw VOC/NOx, VOC/NOx index, compensation
+source, and status. Expected startup sequence:
+
+1. Serial and self-test checks (`SGP41 self-test=0xD400`), then `SHT4x: ONLINE`
+   and `SGP41: ONLINE`.
+2. 10 one-second conditioning cycles (`Status: CONDITIONING (n/10)`).
+3. Raw VOC/NOx readings appear; indices stay `WARM` for the gas algorithm's
+   initial 45-sample learning period.
+4. `Status: READY` with integer VOC/NOx indices in the 1–500 range.
+
+The gas indices are *not* the raw signals. They come from a pure-Python port of
+Sensirion's Gas Index Algorithm v3.2.0 (`stingray/sensors/gas_index.py`)
+validated against the official VOC test vectors. T/RH compensation comes from
+the SHT4x; if that sensor is unavailable the SGP41 falls back to the datasheet
+defaults (25 °C / 50 %RH).
+
+The application config sets both `sht45` and `sgp41` to a 1-second cadence;
+SPS30 (10 s) and SCD4X (5 s) are unchanged.
+
 ## Troubleshooting
 
 ### Service fails to start

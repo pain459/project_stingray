@@ -68,6 +68,7 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
         ConfigError: if an enabled sensor has no hardware driver yet.
     """
     drivers: list[SensorDriver] = []
+    sht_driver: SHT45 | None = None
     unsupported = [
         sid
         for sid in config.enabled_sensors()
@@ -82,15 +83,14 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
         )
 
     if config.sensor_config(SensorId.SHT45).enabled:
-        sht = config.sensor_config(SensorId.SHT45)
+        sht_config = config.sensor_config(SensorId.SHT45)
         # SensorConfig.address defaults to 0, meaning "not specified"; fall
         # back to the sensor's datasheet address rather than probing 0x00.
-        drivers.append(
-            SHT45(
-                bus_number=sht.i2c_bus,
-                address=sht.address or SHT45.DEFAULT_ADDRESS,
-            )
+        sht_driver = SHT45(
+            bus_number=sht_config.i2c_bus,
+            address=sht_config.address or SHT45.DEFAULT_ADDRESS,
         )
+        drivers.append(sht_driver)
     if config.sensor_config(SensorId.SPS30).enabled:
         sps = config.sensor_config(SensorId.SPS30)
         drivers.append(
@@ -109,10 +109,15 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
         )
     if config.sensor_config(SensorId.SGP41).enabled:
         sgp = config.sensor_config(SensorId.SGP41)
+        # The SHT4x is the authoritative T/RH source for gas compensation.
+        # The scheduler is single-threaded, so SHT45.sample() cannot overlap
+        # another I2C transaction. If the SHT4x is absent, SGP41 falls back to
+        # the datasheet defaults rather than failing the gas sensor.
         drivers.append(
             SGP41(
                 bus_number=sgp.i2c_bus,
                 address=sgp.address or SGP41.DEFAULT_ADDRESS,
+                temperature_provider=sht_driver.sample if sht_driver else None,
             )
         )
     return drivers

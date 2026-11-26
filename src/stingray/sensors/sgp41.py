@@ -1,13 +1,13 @@
 """Sensirion SGP41 VOC and NOx gas sensor driver.
 
 The SGP41 sits on the shared I2C bus (default address ``0x59``). It uses the
-Sensirion 16-bit command protocol with CRC-8 (poly 0x31, init 0xFF), the same
-family as the SPS30.
+Sensirion 16-bit command protocol with CRC-8 (poly 0x31, init 0xFF) on every
+data word, the same family as the SCD4X.
 
-The SGP41 measures raw VOC and NOx signals (SRAW_VOC, SRAW_NOX) which are
-proportional to the logarithm of the sensing element resistance. The raw
-signals are converted to VOC and NOx index values (1-500 scale) using the
-Sensirion algorithm.
+SRAW_VOC / SRAW_NOX are raw sensor signals. They are converted to VOC and NOx
+index values with the official Sensirion Gas Index Algorithm (v3.2.0), ported
+in :mod:`stingray.sensors.gas_index`. Reporting raw signals as indices would be
+wrong: they are on unrelated scales.
 
 Bring-up requirements on the host:
 
@@ -16,19 +16,16 @@ Bring-up requirements on the host:
 * ``smbus2`` installed (``uv sync --extra hardware``).
 * The running user in the ``i2c`` group.
 
-Failure policy, chosen so an appliance stays observable:
+Failure policy:
 
 * A deployment problem (no ``smbus2``, no ``/dev/i2c-1``) raises
   :class:`SensorInitError` from :meth:`SGP41.initialize` and stops startup.
 * A merely absent sensor does **not** stop startup. The driver reports
-  ``DISCONNECTED`` and keeps raising on each read, so the dashboard stays up
-  and the sensor recovers automatically once it is wired.
+  ``DISCONNECTED`` and keeps retrying on every cycle.
 
-The SGP41 requires a conditioning period after power-on before it produces
-valid readings. The driver tracks warm-up state and yields no measurements
-during the first ~60 seconds (the datasheet recommends 20-60 seconds of
-conditioning). During warm-up, read failures are treated as "not ready yet"
-rather than as disconnection.
+Conditioning: the datasheet recommends conditioning once per second for the
+first 10 seconds after power-on. During that period VOC/NOx indices are
+reported as ``None`` (WARM) rather than as misleading zeros.
 """
 
 from __future__ import annotations
@@ -55,39 +52,46 @@ from stingray.core.models import (
     utc_now,
 )
 from stingray.core.sensor_protocol import SensorDriver, state_from_failures
+from stingray.sensors.gas_index import (
+    ALGORITHM_TYPE_NOX,
+    ALGORITHM_TYPE_VOC,
+    GasIndexAlgorithm,
+)
 from stingray.sensors.i2c import I2CTransport, Smbus2Transport, is_disconnect_error
 
 log = logging.getLogger("stingray.sensors.sgp41")
 
-# -- SGP41 I2C commands (16-bit, big-endian, with CRC-8) -------------------
+# -- SGP41 I2C commands (16-bit, big-endian) -------------------------------
 
-#: Execute conditioning: VOC pixel at measurement temp, NOx pixel at
-#: conditioning temp. Args: RH ticks, T ticks. Returns SRAW_VOC (2 bytes + CRC).
+#: Execute conditioning. Args: RH ticks, T ticks. Returns SRAW_VOC (2+1 bytes).
 CMD_EXECUTE_CONDITIONING = 0x2612
-#: Measure raw signals: VOC + NOx. Args: RH ticks, T ticks.
+#: Measure raw signals. Args: RH ticks, T ticks.
 #: Returns SRAW_VOC (2+1) + SRAW_NOX (2+1) = 6 bytes.
 CMD_MEASURE_RAW_SIGNALS = 0x2619
 #: Execute self test. Returns test result (2 bytes + CRC).
 CMD_EXECUTE_SELF_TEST = 0x280E
-#: Turn heater off / stop measurement.
-CMD_TURN_HEATER_OFF = 0x0300
-#: Get serial number. Returns 3 words (6 bytes + 3 CRC bytes) = 9 bytes.
+#: Turn heater off / stop measurement (datasheet value, NOT 0x0300).
+CMD_TURN_HEATER_OFF = 0x3615
+#: Get serial number. Returns 3 words (6 data bytes + 3 CRC bytes) = 9 bytes.
 CMD_GET_SERIAL_NUMBER = 0x3682
 
-#: Datasheet: conditioning takes ~45 ms, measurement takes ~45 ms.
+#: Datasheet: conditioning and measurement each take ~50 ms.
 CONDITIONING_DELAY_S = 0.05
 MEASURE_DELAY_S = 0.05
 SELF_TEST_DELAY_S = 0.32
-SERIAL_DELAY_S = 0.05
+SERIAL_DELAY_S = 0.01
+HEATER_OFF_DELAY_S = 0.002
 
-#: The SGP41 needs a conditioning period after power-on. The datasheet
-#: recommends 20-60 seconds. We use 60 seconds to be safe.
-WARMUP_SECONDS = 60.0
+#: Condition once per second for the first 10 seconds after power-on.
+CONDITIONING_CYCLES = 10
+SAMPLE_INTERVAL_S = 1.0
 
 #: Default RH and T values for humidity compensation (50% RH, 25 degC).
-#: 0x8000 = 50% RH, 0x6666 = 25 degC (per datasheet).
 DEFAULT_RH_TICKS = 0x8000
 DEFAULT_T_TICKS = 0x6666
+
+#: Built-in self-test success code.
+SELF_TEST_PASS = 0xD400
 
 
 def crc8_sensirion(data: Iterable[int]) -> int:
@@ -103,66 +107,43 @@ def crc8_sensirion(data: Iterable[int]) -> int:
     return crc
 
 
-def _build_command(cmd: int, args: list[int] | None = None) -> list[int]:
-    """Build a 16-bit command frame with CRC, optionally with argument words.
+def _word(value: int) -> list[int]:
+    """Encode one 16-bit word as [high, low, CRC]."""
+    high, low = (value >> 8) & 0xFF, value & 0xFF
+    return [high, low, crc8_sensirion((high, low))]
 
-    The frame is: [cmd_hi, cmd_lo, cmd_crc] followed by each argument word
-    as [arg_hi, arg_lo, arg_crc].
+
+def _build_command(cmd: int, args: list[int] | None = None) -> list[int]:
+    """Build a command frame.
+
+    Commands without arguments carry a CRC byte after the command word;
+    commands with arguments are sent as ``[cmd_hi, cmd_lo]`` followed by each
+    ``[arg_hi, arg_lo, arg_crc]`` word -- adding a CRC byte after the command
+    makes the chip NACK the transfer.
     """
     frame = [(cmd >> 8) & 0xFF, cmd & 0xFF]
-    frame.append(crc8_sensirion(frame))
-    if args:
-        for arg in args:
-            word = [(arg >> 8) & 0xFF, arg & 0xFF]
-            frame.extend(word)
-            frame.append(crc8_sensirion(word))
+    if not args:
+        frame.append(crc8_sensirion(frame))
+        return frame
+    for arg in args:
+        frame.extend(_word(arg))
     return frame
 
 
-def _validate_crc(data: list[int], offset: int, word_len: int = 2) -> None:
-    """Validate the CRC byte at ``offset + word_len`` for the word at ``offset``."""
-    word = data[offset : offset + word_len]
-    crc_byte = data[offset + word_len]
-    if crc8_sensirion(word) != crc_byte:
+def _validate_crc(data: list[int], offset: int) -> None:
+    """Validate the CRC byte at ``offset + 2`` for the word at ``offset``."""
+    if crc8_sensirion(data[offset : offset + 2]) != data[offset + 2]:
         raise SensorReadError(f"sgp41: CRC mismatch at offset {offset}")
 
 
-def _ticks_to_rh(rh_percent: float) -> int:
-    """Convert %RH to SGP41 RH ticks."""
-    return int(rh_percent * 65535 / 100)
+def ticks_to_rh(rh_percent: float) -> int:
+    """Convert %RH to SGP41 RH ticks (round, then clamp to 16-bit)."""
+    return max(0, min(65535, round(rh_percent * 65535 / 100)))
 
 
-def _ticks_to_temp(temp_c: float) -> int:
+def ticks_to_temp(temp_c: float) -> int:
     """Convert degrees Celsius to SGP41 temperature ticks."""
-    return int((temp_c + 45) * 65535 / 175)
-
-
-def _sraw_to_index(sraw: int, *, is_voc: bool = True) -> float:
-    """Convert SRAW signal to VOC or NOx index (1-500 scale).
-
-    The SGP41 datasheet provides a lookup table for the conversion. The raw
-    signal is proportional to the logarithm of the resistance. The index
-    scale is 1-500, where 1 is clean air and 500 is heavily polluted.
-
-    The conversion uses the Sensirion algorithm which maps the raw signal
-    to an index value. For a simplified implementation, we use a linear
-    mapping based on the datasheet's reference points:
-    - SRAW ~ 20000 -> index ~ 1 (clean air)
-    - SRAW ~ 50000 -> index ~ 500 (heavily polluted)
-
-    A more accurate implementation would use the full lookup table from
-    the datasheet, but this linear approximation is sufficient for
-    monitoring purposes.
-    """
-    # Clamp to valid range
-    sraw = max(0, min(65535, sraw))
-    # Linear mapping: index = 1 + (sraw - 20000) * 499 / (50000 - 20000)
-    # This gives index 1 at sraw=20000 and index 500 at sraw=50000
-    if sraw <= 20000:
-        return 1.0
-    if sraw >= 50000:
-        return 500.0
-    return 1.0 + (sraw - 20000) * 499.0 / 30000.0
+    return max(0, min(65535, round((temp_c + 45) * 65535 / 175)))
 
 
 class SGP41(SensorDriver):
@@ -174,6 +155,9 @@ class SGP41(SensorDriver):
         bus_number: I2C bus index (1 on a Raspberry Pi header).
         address: 7-bit I2C address (0x59 for SGP41).
         sleep: injected sleep function so tests need no real delay.
+        temperature_provider: optional callable returning ``(temp_c, rh_pct)``
+            from the authoritative SHT4x sensor for humidity compensation.
+            Defaults to 25 degC / 50 %RH when omitted.
     """
 
     DEFAULT_ADDRESS = 0x59
@@ -185,21 +169,24 @@ class SGP41(SensorDriver):
         bus_number: int = 1,
         address: int = DEFAULT_ADDRESS,
         sleep: Callable[[float], None] = time.sleep,
+        temperature_provider: Callable[[], tuple[float, float]] | None = None,
     ) -> None:
         self._bus = bus
         self._owns_bus = bus is None
         self._bus_number = bus_number
         self._address = address
         self._sleep = sleep
+        self._temperature_provider = temperature_provider
         self._initialized = False
         self._closed = False
         self._disconnected = False
         self._consecutive_failures = 0
         self._last_read_wall: datetime | None = None
         self._serial: int | None = None
-        self._warmup_start: float | None = None
-        self._in_warmup = False
-        self._conditioning_done = False
+        self._self_test_passed: bool | None = None
+        self._conditioning_cycles_done = 0
+        self._voc_algorithm = GasIndexAlgorithm(ALGORITHM_TYPE_VOC, SAMPLE_INTERVAL_S)
+        self._nox_algorithm = GasIndexAlgorithm(ALGORITHM_TYPE_NOX, SAMPLE_INTERVAL_S)
 
     # -- introspection -----------------------------------------------------
 
@@ -223,7 +210,31 @@ class SGP41(SensorDriver):
     @property
     def in_warmup(self) -> bool:
         """True while the sensor is still in its conditioning period."""
-        return self._in_warmup
+        return self._conditioning_cycles_done < CONDITIONING_CYCLES
+
+    @property
+    def conditioning_cycles_done(self) -> int:
+        return self._conditioning_cycles_done
+
+    @property
+    def gas_indices_ready(self) -> bool:
+        """True once both index algorithms have left their initial blackout.
+
+        The Sensirion algorithm returns a sentinel ``0`` while it learns a
+        baseline. Those values must be reported as WARM/null, never as zero
+        indices, so the driver simply omits index measurements until this is
+        true. Raw signals are always published.
+        """
+        return not (
+            self._voc_algorithm.warming_up or self._nox_algorithm.warming_up
+        )
+
+    @property
+    def compensation_source(self) -> str:
+        """Human-readable source of the T/RH used for gas compensation."""
+        if self._temperature_provider is None:
+            return "default (25 C / 50 %RH)"
+        return "SHT4x (SHT45)"
 
     def __repr__(self) -> str:
         return (
@@ -234,20 +245,13 @@ class SGP41(SensorDriver):
     # -- driver protocol ---------------------------------------------------
 
     def initialize(self) -> None:
-        """Open the bus, probe the sensor, and start the conditioning period.
-
-        Raises:
-            SensorInitError: only for deployment errors (missing ``smbus2`` or
-                a missing ``/dev/i2c-N``). An absent sensor is recorded as
-                disconnected instead of aborting startup.
-        """
+        """Open the bus, probe the sensor and start the conditioning period."""
         if self._closed:
             raise SensorInitError("sgp41: driver is closed")
         if self._bus is None:
             self._bus = Smbus2Transport(self._bus_number)
 
         self._initialized = True
-
         try:
             self._probe()
         except SensorError as exc:
@@ -270,48 +274,48 @@ class SGP41(SensorDriver):
         self._disconnected = False
         self._consecutive_failures = 0
 
-        # Read serial number (best effort).
         try:
             self._serial = self.read_serial_number()
         except (SensorError, OSError):
             self._serial = None
 
-        # Start the conditioning period.
-        self._warmup_start = time.monotonic()
-        self._in_warmup = True
-        self._conditioning_done = False
-
+        self._conditioning_cycles_done = 0
         log.info(
-            "sgp41: ready on bus %d at 0x%02X%s; conditioning for %ds",
+            "sgp41: ready on bus %d at 0x%02X%s; conditioning %d cycles",
             self._bus_number,
             self._address,
             "" if self._serial is None else f" (serial 0x{self._serial:012X})",
-            int(WARMUP_SECONDS),
+            CONDITIONING_CYCLES,
         )
 
     def read(self) -> Iterator[Measurement]:
-        """Perform one measurement cycle, yielding VOC and NOx index values.
+        """Perform one measurement cycle.
 
-        During the warm-up period, the sensor is conditioned but no valid
-        readings are produced. The method yields nothing during warm-up.
+        During the first 10 cycles the chip is conditioned once per second and
+        no index values are emitted (the standalone validation script shows
+        them as WARM). Raw signals are still emitted so the warm-up is visible.
         """
         if self._closed:
             raise SensorReadError("sgp41: driver is closed")
         if not self._initialized:
             raise SensorInitError("sgp41: driver not initialized")
 
-        # Check if still in warm-up.
-        if self._in_warmup:
-            elapsed = time.monotonic() - (self._warmup_start or 0)
-            if elapsed < WARMUP_SECONDS:
-                # Still conditioning; yield nothing.
-                return
-            # Warm-up complete.
-            self._in_warmup = False
-            log.info("sgp41: conditioning complete, starting measurements")
+        temperature_c, rh_percent = self._compensation()
+
+        if self.in_warmup:
+            try:
+                self._condition(ticks_to_rh(rh_percent), ticks_to_temp(temperature_c))
+            except (SensorError, OSError) as exc:
+                log.warning("sgp41: conditioning cycle failed: %s", exc)
+            self._conditioning_cycles_done += 1
+            if self._conditioning_cycles_done == CONDITIONING_CYCLES:
+                log.info("sgp41: conditioning complete, starting measurements")
+            return
 
         try:
-            sraw_voc, sraw_nox = self._measure()
+            sraw_voc, sraw_nox = self._measure(
+                ticks_to_rh(rh_percent), ticks_to_temp(temperature_c)
+            )
         except SensorError:
             self._consecutive_failures += 1
             raise
@@ -329,26 +333,39 @@ class SGP41(SensorDriver):
         observed_at = utc_now()
         self._last_read_wall = observed_at
 
-        voc_index = _sraw_to_index(sraw_voc, is_voc=True)
-        nox_index = _sraw_to_index(sraw_nox, is_voc=False)
+        # Capture readiness *before* advancing the algorithms: process()
+        # increments uptime on its final blackout sample, so checking after
+        # would publish that sample's sentinel zero as a real index.
+        indices_ready = self.gas_indices_ready
 
-        yield self._measurement(MetricId.VOC_INDEX, voc_index, observed_at)
-        yield self._measurement(MetricId.NOX_INDEX, nox_index, observed_at)
+        # Always advance both algorithms, even during their blackout: the
+        # reference implementation learns its baseline from those samples.
+        voc_index = self._voc_algorithm.process(sraw_voc)
+        nox_index = self._nox_algorithm.process(sraw_nox)
+
         yield self._measurement(MetricId.VOC_RAW, float(sraw_voc), observed_at)
         yield self._measurement(MetricId.NOX_RAW, float(sraw_nox), observed_at)
+        if indices_ready:
+            yield self._measurement(MetricId.VOC_INDEX, float(voc_index), observed_at)
+            yield self._measurement(MetricId.NOX_INDEX, float(nox_index), observed_at)
 
     def health(self) -> SensorHealth:
-        if not self._initialized and not self._closed:
+        if self._disconnected:
+            state = SensorState.DISCONNECTED
+        elif not self._initialized and not self._closed:
             state = SensorState.INITIALIZING
-        elif self._in_warmup:
+        elif self.in_warmup or not self.gas_indices_ready:
             state = SensorState.INITIALIZING
         else:
             state = state_from_failures(
                 self._consecutive_failures, disconnected=self._disconnected
             )
         msg = ""
-        if state is SensorState.INITIALIZING and self._in_warmup:
-            msg = "conditioning"
+        if state is SensorState.INITIALIZING:
+            if self.in_warmup:
+                msg = "conditioning"
+            elif not self.gas_indices_ready:
+                msg = "gas index warmup"
         elif state is not SensorState.READY:
             msg = f"state={state.value}"
         return SensorHealth(
@@ -365,27 +382,28 @@ class SGP41(SensorDriver):
             return
         self._closed = True
         self._initialized = False
-        # Turn off the heater to save power and protect the sensor.
         if self._bus is not None:
             with suppress(Exception):
                 self._turn_heater_off()
         bus = self._bus
         self._bus = None
         if bus is not None and self._owns_bus:
-            with suppress(Exception):  # close must never raise
+            with suppress(Exception):
                 bus.close()
 
     # -- sensor commands ---------------------------------------------------
 
     def read_serial_number(self) -> int:
-        """Read the 48-bit serial number from the sensor."""
+        """Read the 48-bit serial number (three 16-bit words)."""
         raw = self._transact(CMD_GET_SERIAL_NUMBER, 9, SERIAL_DELAY_S)
         for offset in (0, 3, 6):
             _validate_crc(raw, offset)
-        return (
-            (raw[0] << 24) | (raw[1] << 16) | (raw[2] << 8) | raw[3]
-            | (raw[4] << 24) | (raw[5] << 16) | (raw[6] << 8) | raw[7]
-        )
+        words = [
+            (raw[0] << 8) | raw[1],
+            (raw[3] << 8) | raw[4],
+            (raw[6] << 8) | raw[7],
+        ]
+        return (words[0] << 32) | (words[1] << 16) | words[2]
 
     def execute_self_test(self) -> int:
         """Run the built-in self test and return the result word."""
@@ -396,43 +414,64 @@ class SGP41(SensorDriver):
     def _turn_heater_off(self) -> None:
         """Send the turn-heater-off command (no response expected)."""
         bus = self._require_bus()
-        frame = _build_command(CMD_TURN_HEATER_OFF)
-        bus.write_block(self._address, frame)
+        bus.write_block(self._address, _build_command(CMD_TURN_HEATER_OFF))
+        self._sleep(HEATER_OFF_DELAY_S)
+
+    def _compensation(self) -> tuple[float, float]:
+        """Return ``(temperature_c, rh_percent)`` for gas compensation."""
+        if self._temperature_provider is None:
+            return 25.0, 50.0
+        try:
+            temperature_c, rh_percent = self._temperature_provider()
+        except Exception as exc:  # never let compensation kill the gas sensor
+            log.warning("sgp41: compensation source unavailable (%s); using defaults", exc)
+            return 25.0, 50.0
+        return float(temperature_c), float(rh_percent)
 
     # -- internals ---------------------------------------------------------
 
     def _probe(self) -> None:
-        """One self-test to validate presence and CRC."""
-        self.execute_self_test()
+        """One self-test to validate presence and firmware behaviour."""
+        result = self.execute_self_test()
+        self._self_test_passed = result == SELF_TEST_PASS
+        if not self._self_test_passed:
+            log.warning(
+                "sgp41: self-test returned 0x%04X (expected 0x%04X)",
+                result,
+                SELF_TEST_PASS,
+            )
 
-    def _measure(self) -> tuple[int, int]:
-        """Perform one raw signal measurement.
-
-        Returns:
-            Tuple of (SRAW_VOC, SRAW_NOX) as unsigned 16-bit integers.
-        """
-        # Use default RH and T values (50% RH, 25 degC) for humidity compensation.
-        args = [DEFAULT_RH_TICKS, DEFAULT_T_TICKS]
-        frame = _build_command(CMD_MEASURE_RAW_SIGNALS, args)
+    def _condition(self, rh_ticks: int, t_ticks: int) -> int:
+        """Run one conditioning cycle and return SRAW_VOC."""
         bus = self._require_bus()
+        frame = _build_command(CMD_EXECUTE_CONDITIONING, [rh_ticks, t_ticks])
+        bus.write_block(self._address, frame)
+        self._sleep(CONDITIONING_DELAY_S)
+        raw = bus.read(self._address, 3)
+        if len(raw) != 3:
+            raise SensorReadError(f"sgp41: expected 3 bytes, received {len(raw)}")
+        raw = [int(b) & 0xFF for b in raw]
+        _validate_crc(raw, 0)
+        return (raw[0] << 8) | raw[1]
+
+    def _measure(self, rh_ticks: int, t_ticks: int) -> tuple[int, int]:
+        """Perform one raw signal measurement with T/RH compensation."""
+        bus = self._require_bus()
+        frame = _build_command(CMD_MEASURE_RAW_SIGNALS, [rh_ticks, t_ticks])
         bus.write_block(self._address, frame)
         self._sleep(MEASURE_DELAY_S)
         raw = bus.read(self._address, 6)
         if len(raw) != 6:
             raise SensorReadError(f"sgp41: expected 6 bytes, received {len(raw)}")
         raw = [int(b) & 0xFF for b in raw]
-        # Validate CRCs: SRAW_VOC at offset 0, SRAW_NOX at offset 3.
         _validate_crc(raw, 0)
         _validate_crc(raw, 3)
-        sraw_voc = (raw[0] << 8) | raw[1]
-        sraw_nox = (raw[3] << 8) | raw[4]
-        return sraw_voc, sraw_nox
+        return (raw[0] << 8) | raw[1], (raw[3] << 8) | raw[4]
 
     def _transact(self, command: int, length: int, delay_s: float) -> list[int]:
         """Send a command (no args) and read ``length`` bytes back."""
         bus = self._require_bus()
-        frame = _build_command(command)
-        bus.write_block(self._address, frame)
+        bus.write_block(self._address, _build_command(command))
         self._sleep(delay_s)
         raw = bus.read(self._address, length)
         if len(raw) != length:

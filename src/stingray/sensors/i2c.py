@@ -76,13 +76,15 @@ class Smbus2Transport:
     def __init__(self, bus_number: int = 1) -> None:
         self._bus_number = bus_number
         self._bus: Any = None
+        self._i2c_msg: Any = None
         try:
-            from smbus2 import SMBus
+            from smbus2 import SMBus, i2c_msg
         except ImportError as exc:
             raise SensorInitError(
                 "smbus2 is not installed; install the hardware extra: "
                 "uv sync --extra hardware"
             ) from exc
+        self._i2c_msg = i2c_msg
         try:
             self._bus = SMBus(bus_number)
         except FileNotFoundError as exc:
@@ -113,10 +115,19 @@ class Smbus2Transport:
             self._bus.write_i2c_block_data(address, data[0], data[1:])
 
     def read(self, address: int, length: int) -> list[int]:
+        """Read ``length`` bytes with a raw I2C read (no register byte).
+
+        Sensirion sensors (SHT4x, SGP41, SCD4X, SPS30) use a
+        command-then-read protocol: a command is written first, then the
+        response is read back with a *bare* read transaction. SMBus
+        ``read_i2c_block_data(address, register, length)`` injects a register
+        byte, which those chips do not expect and makes them NACK the read.
+        """
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        data = self._bus.read_i2c_block_data(address, 0, length)
-        return [int(b) for b in data]
+        read_msg = self._i2c_msg.read(address, length)
+        self._bus.i2c_rdwr(read_msg)
+        return [int(b) for b in read_msg]
 
     def close(self) -> None:
         bus = self._bus
