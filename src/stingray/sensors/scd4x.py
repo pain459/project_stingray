@@ -170,14 +170,14 @@ class SCD4X(SensorDriver):
             raise SensorDisconnectedError("scd4x: sensor not ready")
 
         try:
-            # Check if data is ready before reading
-            if not self._is_data_ready():
-                # Data not ready yet - this is normal during warm-up
-                # Don't raise an error, just yield nothing
-                return
-
             # Read measurement (9 bytes: 3 words + 3 CRCs)
-            raw = self._require_bus().read(self._address, RESPONSE_SIZE_MEASUREMENT)
+            # If no data is available, the sensor returns a NACK (I/O error)
+            # This is normal during warm-up, so we just yield nothing
+            try:
+                raw = self._require_bus().read(self._address, RESPONSE_SIZE_MEASUREMENT)
+            except OSError:
+                # NACK - data not ready yet, this is normal during warm-up
+                return
 
             # Parse CO2 (word 0)
             co2_raw = (raw[0] << 8) | raw[1]
