@@ -43,6 +43,17 @@ _FORBIDDEN_CLAIMS = (
     "covid",
 )
 
+#: Metric order, display labels, and decimal places for Telegram values.
+_TELEGRAM_METRICS = (
+    ("pm2_5_ug_m3", "PM2.5", 1),
+    ("co2_ppm", "CO2", 0),
+    ("voc_index", "VOC index", 0),
+    ("nox_index", "NOx index", 0),
+    ("temperature_c", "Temperature", 1),
+    ("relative_humidity_percent", "Humidity", 1),
+    ("tps_um", "TPS", 2),
+)
+
 
 @dataclass(frozen=True)
 class MetricFacts:
@@ -468,12 +479,43 @@ def make_summary(
 
 
 def telegram_text(summary: Summary) -> str:
-    """Render a plain-text Telegram message from a validated Summary."""
+    """Render a plain-text Telegram message from a validated Summary.
+
+    Values come first, followed by hour-to-hour changes, deterministic notes,
+    and recommended practices. Nothing is truncated here; the sender splits
+    long messages into readable parts at line boundaries.
+    """
     lines = ["Stingray hourly air-quality summary", "", summary.headline, "", summary.text]
+
+    lines.extend(["", "Values (last hour):"])
+    shown: set[str] = set()
+    for key, label, digits in _TELEGRAM_METRICS:
+        f = summary.facts.metrics.get(key)
+        if f is None:
+            continue
+        shown.add(key)
+        lines.append(
+            f"- {label}: avg {_fmt(f.avg, digits)}, min {_fmt(f.minimum, digits)}, "
+            f"max {_fmt(f.maximum, digits)} {f.unit}"
+        )
+    for key, f in sorted(summary.facts.metrics.items()):
+        if key in shown:
+            continue
+        lines.append(
+            f"- {f.metric}: avg {_fmt(f.avg)}, min {_fmt(f.minimum)}, "
+            f"max {_fmt(f.maximum)} {f.unit}"
+        )
+
     changes = [f.message for f in summary.findings if f.code.endswith("_hour_change")]
     if changes:
         lines.extend(["", "Compared with previous hour:"])
         lines.extend(f"- {message}" for message in changes)
+
+    notes = [f.message for f in summary.findings if not f.code.endswith("_hour_change")]
+    if notes:
+        lines.extend(["", "Notes:"])
+        lines.extend(f"- {message}" for message in notes)
+
     if summary.actions:
         lines.extend(["", "Recommended practices:"])
         lines.extend(f"- {action}" for action in summary.actions)

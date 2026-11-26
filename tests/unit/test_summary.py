@@ -17,7 +17,7 @@ from stingray.summary import (
     telegram_text,
     validate_model_payload,
 )
-from stingray.summary_job import aggregate_facts
+from stingray.summary_job import aggregate_facts, split_telegram_text
 from stingray.summary_store import SummaryStore
 
 
@@ -206,6 +206,37 @@ class TestValidation:
         assert not summary.model_used
         assert summary.fallback_reason
         assert "PM2.5" in telegram_text(summary)
+
+
+class TestTelegram:
+    def test_values_then_notes_then_practices(self) -> None:
+        facts = _facts(pm2_5_ug_m3=40.0)
+        pm = facts.metrics["pm2_5_ug_m3"]
+        facts.metrics["pm2_5_ug_m3"] = replace(pm, minimum=30.0, maximum=50.0)
+        findings = derive_findings(facts, ThresholdsConfig())
+        summary = make_summary(
+            facts,
+            findings,
+            model="test-model",
+            payload={"headline": "Headline", "summary": "Summary."},
+        )
+        text = telegram_text(summary)
+        assert "avg 40.0, min 30.0, max 50.0 ug/m3" in text
+        assert "Notes:" in text
+        assert "Recommended practices:" in text
+        assert (
+            text.index("Values (last hour):")
+            < text.index("Notes:")
+            < text.index("Recommended practices:")
+        )
+
+    def test_long_text_is_split_without_loss(self) -> None:
+        text = "\n".join(f"line {i:03d} " + "x" * 20 for i in range(300))
+        parts = split_telegram_text(text, limit=500)
+        assert len(parts) > 1
+        assert all(len(part) <= 500 for part in parts)
+        assert sum(part.count("line ") for part in parts) == 300
+        assert "line 299" in parts[-1]
 
 
 class TestStore:

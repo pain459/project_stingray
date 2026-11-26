@@ -206,31 +206,65 @@ def generate(
     )
 
 
+def split_telegram_text(text: str, limit: int = 3900) -> list[str]:
+    """Split long summaries into Telegram-sized parts at line boundaries.
+
+    No content is discarded; only pathologically long single lines are hard
+    wrapped. The limit stays below Telegram's 4096-character message cap so a
+    small ``(part n/m)`` footer can be added safely.
+    """
+    if len(text) <= limit:
+        return [text]
+    parts: list[str] = []
+    current: list[str] = []
+    for line in text.split("\n"):
+        while len(line) > limit:
+            if current:
+                parts.append("\n".join(current))
+                current = []
+            parts.append(line[:limit])
+            line = line[limit:]
+        candidate = "\n".join([*current, line])
+        if len(candidate) > limit and current:
+            parts.append("\n".join(current))
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        parts.append("\n".join(current))
+    return parts
+
+
 def send_telegram(
     bot_token: str, chat_id: str, text: str, *, timeout_seconds: float = 20.0
 ) -> None:
     """Send a plain-text Telegram message. Never log the token or full URL."""
     token = quote_token(bot_token)
     endpoint = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps(
-        {"chat_id": chat_id, "text": text[:4000], "disable_web_page_preview": True}
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        endpoint,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"telegram request failed: {type(exc).__name__}") from None
-    if not isinstance(body, dict) or not body.get("ok"):
-        detail = (
-            body.get("description", "unknown error") if isinstance(body, dict) else "unknown error"
+    parts = split_telegram_text(text)
+    for index, part in enumerate(parts, start=1):
+        body_text = part if len(parts) == 1 else f"{part}\n\n(part {index}/{len(parts)})"
+        payload = json.dumps(
+            {"chat_id": chat_id, "text": body_text, "disable_web_page_preview": True}
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
-        raise RuntimeError(f"telegram rejected message: {detail}")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"telegram request failed: {type(exc).__name__}") from None
+        if not isinstance(body, dict) or not body.get("ok"):
+            detail = (
+                body.get("description", "unknown error")
+                if isinstance(body, dict)
+                else "unknown error"
+            )
+            raise RuntimeError(f"telegram rejected message: {detail}")
 
 
 def quote_token(token: str) -> str:
