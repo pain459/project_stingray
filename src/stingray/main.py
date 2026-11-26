@@ -25,6 +25,7 @@ from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.display import DisplayService
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
 from stingray.sensors.scd4x import SCD4X
+from stingray.sensors.sgp41 import SGP41
 from stingray.sensors.sht45 import SHT45
 from stingray.sensors.sps30 import SPS30
 from stingray.storage.parquet_store import ParquetWriter, apply_retention
@@ -34,7 +35,9 @@ log = logging.getLogger("stingray")
 #: Hardware drivers that exist today. Onboarding is deliberately incremental:
 #: a sensor listed here has a real driver, everything else must stay disabled
 #: in hardware mode so a half-finished bring-up cannot silently produce gaps.
-_HARDWARE_READY: frozenset[SensorId] = frozenset({SensorId.SHT45, SensorId.SCD4X, SensorId.SPS30})
+_HARDWARE_READY: frozenset[SensorId] = frozenset(
+    {SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30}
+)
 
 _DEFAULT_CONFIG = (
     Path(__file__).resolve().parent.parent.parent.parent / "config" / "application.example.yaml"
@@ -102,6 +105,14 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
             SCD4X(
                 bus_number=scd.i2c_bus,
                 address=scd.address or SCD4X.DEFAULT_ADDRESS,
+            )
+        )
+    if config.sensor_config(SensorId.SGP41).enabled:
+        sgp = config.sensor_config(SensorId.SGP41)
+        drivers.append(
+            SGP41(
+                bus_number=sgp.i2c_bus,
+                address=sgp.address or SGP41.DEFAULT_ADDRESS,
             )
         )
     return drivers
