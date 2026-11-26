@@ -105,12 +105,14 @@ class Smbus2Transport:
     def write_block(self, address: int, data: list[int]) -> None:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        self._bus.write_i2c_block_data(address, 0, data)
+        # Use raw I2C write to avoid the extra register byte that
+        # write_i2c_block_data would prepend.
+        self._bus.write(address, bytes(data))
 
     def read(self, address: int, length: int) -> list[int]:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        data = self._bus.read_i2c_block_data(address, 0, length)
+        data = self._bus.read(address, length)
         return [int(b) for b in data]
 
     def close(self) -> None:
