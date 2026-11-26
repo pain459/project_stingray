@@ -103,11 +103,14 @@ class ILI9341Driver:
         self._write_cmd(0x3A)
         self._write_data(bytes([0x05]))
 
-        # Set address window to full screen (320x240)
+        # Set address window to full screen (240x320 in portrait, 320x240 in landscape)
+        # With MADCTL 0x08, X and Y are swapped, so we set:
+        # - Column (X) to 0-239 (240 pixels)
+        # - Row (Y) to 0-319 (320 pixels)
         self._write_cmd(0x2A)
-        self._write_data(bytes([0x00, 0x00, 0x01, 0x3F]))  # 320 wide
+        self._write_data(bytes([0x00, 0x00, 0x00, 0xEF]))  # 240 wide
         self._write_cmd(0x2B)
-        self._write_data(bytes([0x00, 0x00, 0x00, 0xEF]))  # 240 tall
+        self._write_data(bytes([0x00, 0x00, 0x01, 0x3F]))  # 320 tall
 
         # Display on
         self._write_cmd(0x29)
