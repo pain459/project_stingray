@@ -172,22 +172,22 @@ class DisplayDashboard:
         elif icon == "droplet":
             self._draw_droplet_icon(x + 4, y + 4, COLORS["cyan"])
         
-        # Label (top)
+        # Label (top) - use 8x10 font for better readability
         label_x = x + 16 if icon else x + 4
-        draw_text_5x7(label_x, y + 4, label, text_color,
+        draw_text_8x10(label_x, y + 2, label, text_color,
                       lambda px, py, w, h, c: self.driver.fill_rectangle(px, py, w, h, c))
         
-        # Value (center)
+        # Value (center) - use 8x10 font for better readability
         value_width = len(value) * 9
         value_x = x + (width - value_width) // 2
-        draw_text_8x10(value_x, y + 18, value, text_color,
+        draw_text_8x10(value_x, y + 14, value, text_color,
                        lambda px, py, w, h, c: self.driver.fill_rectangle(px, py, w, h, c))
         
-        # Unit (bottom)
+        # Unit (bottom) - use 8x10 font for better readability
         if unit:
-            unit_width = len(unit) * 6
+            unit_width = len(unit) * 9
             unit_x = x + (width - unit_width) // 2
-            draw_text_5x7(unit_x, y + height - 10, unit, text_color,
+            draw_text_8x10(unit_x, y + height - 12, unit, text_color,
                          lambda px, py, w, h, c: self.driver.fill_rectangle(px, py, w, h, c))
     
     def _draw_footer(self, state: DisplayState) -> None:
