@@ -173,30 +173,34 @@ class ILI9341Display:
         humidity: Optional[float],
     ) -> None:
         """Draw a simple status indicator showing sensor data availability."""
+        # Display is rotated 90 degrees (MADCTL 0x08), so:
+        # - X axis goes from top to bottom (0-319)
+        # - Y axis goes from left to right (0-239)
+        
         # Draw larger colored squares for each sensor, spread across the screen
-        # PM2.5 - top left
+        # PM2.5 - top left (X=10, Y=10)
         if pm25 is not None:
             self._draw_square(10, 10, 40, 40, (255, 0, 0))
         else:
             self._draw_square(10, 10, 40, 40, (50, 50, 50))
 
-        # CO2 - top right
+        # CO2 - top right (X=10, Y=200)
         if co2 is not None:
-            self._draw_square(self.WIDTH - 50, 10, 40, 40, (0, 255, 0))
+            self._draw_square(10, 200, 40, 40, (0, 255, 0))
         else:
-            self._draw_square(self.WIDTH - 50, 10, 40, 40, (50, 50, 50))
+            self._draw_square(10, 200, 40, 40, (50, 50, 50))
 
-        # Temperature - middle left
+        # Temperature - bottom left (X=280, Y=10)
         if temp is not None:
-            self._draw_square(10, 60, 40, 40, (0, 0, 255))
+            self._draw_square(280, 10, 40, 40, (0, 0, 255))
         else:
-            self._draw_square(10, 60, 40, 40, (50, 50, 50))
+            self._draw_square(280, 10, 40, 40, (50, 50, 50))
 
-        # Humidity - middle right
+        # Humidity - bottom right (X=280, Y=200)
         if humidity is not None:
-            self._draw_square(self.WIDTH - 50, 60, 40, 40, (255, 255, 0))
+            self._draw_square(280, 200, 40, 40, (255, 255, 0))
         else:
-            self._draw_square(self.WIDTH - 50, 60, 40, 40, (50, 50, 50))
+            self._draw_square(280, 200, 40, 40, (50, 50, 50))
 
     def _draw_square(self, x: int, y: int, width: int, height: int, color: tuple[int, int, int]) -> None:
         """Draw a filled square at the given position."""
