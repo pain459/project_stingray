@@ -59,6 +59,7 @@
     <button data-metric="relative_humidity_percent" onclick="window.selectMetric('relative_humidity_percent')">Humidity</button>
     <button data-metric="voc_index" onclick="window.selectMetric('voc_index')">VOC</button>
     <button data-metric="nox_index" onclick="window.selectMetric('nox_index')">NOx</button>
+    <button data-metric="tps_um" onclick="window.selectMetric('tps_um')">TPS</button>
   </div>
 
   <div class="selector-label">Range</div>
@@ -93,6 +94,7 @@
   <div class="row"><span class="label">PM2.5 count</span><span id="n25">--</span></div>
   <div class="row"><span class="label">PM4 count</span><span id="n4">--</span></div>
   <div class="row"><span class="label">PM10 count</span><span id="n10">--</span></div>
+  <div class="row"><span class="label">Typical particle size</span><span id="tps">--</span></div>
 </div>
 
 <div class="section">
@@ -104,6 +106,9 @@
   <div class="row"><span class="label">Uptime</span><span id="up">--</span></div>
   <div class="row"><span class="label">Total readings</span><span id="total">--</span></div>
   <div class="row"><span class="label">Mode</span><span id="mode">--</span></div>
+  <div class="row"><span class="label">WiFi interface</span><span id="netif">--</span></div>
+  <div class="row"><span class="label">IP address</span><span id="ipaddr">--</span></div>
+  <div class="row"><span class="label">WiFi signal</span><span id="wifirssi">--</span></div>
 </div>
 
 <div class="section">
@@ -112,9 +117,9 @@
 </div>
 
 </div>
-<script src="js/chart.js?v=5"></script>
-<script src="js/history.js?v=5"></script>
-<script src="js/live.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/chart.js?v=6"></script>
+<script src="js/history.js?v=6"></script>
+<script src="js/live.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>

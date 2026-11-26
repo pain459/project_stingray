@@ -20,7 +20,8 @@
     temperature_c: { label: 'Temperature', unit: '°C', decimals: 1 },
     relative_humidity_percent: { label: 'Humidity', unit: '%RH', decimals: 1 },
     voc_index: { label: 'VOC Index', unit: 'Index', decimals: 0 },
-    nox_index: { label: 'NOx Index', unit: 'Index', decimals: 0 }
+    nox_index: { label: 'NOx Index', unit: 'Index', decimals: 0 },
+    tps_um: { label: 'Typical particle size', unit: 'µm', decimals: 2 }
   };
 
   window.HIST = {

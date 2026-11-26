@@ -302,6 +302,19 @@ defaults (25 °C / 50 %RH).
 The application config sets both `sht45` and `sgp41` to a 1-second cadence;
 SPS30 (10 s) and SCD4X (5 s) are unchanged.
 
+## TPS and network information
+
+The SPS30's tenth measurement word — *typical particle size* (TPS, µm) — is
+now published as the `tps_um` metric at 10-second cadence. It appears in
+`/api/live`, as a card on the web dashboard, in the history selector, and as
+the TPS tile on the TFT (whose unit has been corrected from kPa to µm).
+
+`/api/live` also returns a `network` object with the active WiFi interface,
+its IP address and the signal level in dBm. It is derived with standard
+library calls (`SIOCGIFADDR` and `/proc/net/wireless`); no SSID, password, MAC
+address or route is exposed. The web dashboard shows these under **System**,
+and the TFT footer uses the signal level for its existing RSSI field.
+
 ## Troubleshooting
 
 ### Service fails to start

@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from stingray.core.models import SensorId
+from stingray.core.network import NetworkInfo, as_dict
 from stingray.core.scheduler import SensorScheduler
 from stingray.storage.parquet_store import ParquetQuery
 
@@ -58,11 +59,13 @@ class ApiState:
         *,
         mode: str = "mock",
         start_time: float | None = None,
+        network: NetworkInfo | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.db_path = db_path
         self.mode = mode
         self.start_time = start_time if start_time is not None else time.monotonic()
+        self.network = network
         self._lock = threading.Lock()
 
     def uptime_seconds(self) -> float:
@@ -168,7 +171,16 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "message": h.message,
             }
 
-        _json_response(self, 200, {"live": live, "health": health, "total": total})
+        _json_response(
+            self,
+            200,
+            {
+                "live": live,
+                "health": health,
+                "network": as_dict(self.network) if self.network is not None else None,
+                "total": total,
+            },
+        )
 
     def _serve_history(self, query: dict[str, list[str]]) -> None:
         """Time-range history with stats, matching the reference API shape.

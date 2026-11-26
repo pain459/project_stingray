@@ -37,6 +37,8 @@ class MetricId(StrEnum):
     PM2_5_NUM_M3 = "pm2_5_num_m3"
     PM4_NUM_M3 = "pm4_num_m3"
     PM10_NUM_M3 = "pm10_num_m3"
+    #: SPS30 typical particle size (SPS30 response word 9).
+    TPS_UM = "tps_um"
     CO2_PPM = "co2_ppm"
     TEMPERATURE_C = "temperature_c"
     RELATIVE_HUMIDITY_PERCENT = "relative_humidity_percent"
@@ -56,6 +58,7 @@ METRIC_UNITS: dict[MetricId, str] = {
     MetricId.PM2_5_NUM_M3: "1/m3",
     MetricId.PM4_NUM_M3: "1/m3",
     MetricId.PM10_NUM_M3: "1/m3",
+    MetricId.TPS_UM: "um",
     MetricId.CO2_PPM: "ppm",
     MetricId.TEMPERATURE_C: "degC",
     MetricId.RELATIVE_HUMIDITY_PERCENT: "%",
@@ -76,6 +79,7 @@ _NON_NEGATIVE_METRICS = frozenset(
         MetricId.PM2_5_NUM_M3,
         MetricId.PM4_NUM_M3,
         MetricId.PM10_NUM_M3,
+        MetricId.TPS_UM,
         MetricId.CO2_PPM,
         MetricId.RELATIVE_HUMIDITY_PERCENT,
         MetricId.VOC_INDEX,

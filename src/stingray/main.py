@@ -20,6 +20,7 @@ from stingray.core.config import AppConfig, load_config
 from stingray.core.errors import ConfigError, SensorInitError
 from stingray.core.models import SensorId
 from stingray.core.latest_readings import LatestReadings
+from stingray.core.network import get_network_info
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.display import DisplayService
@@ -185,8 +186,12 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
         return 1
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
+    # One network snapshot for both consumers: the API reports the IP and the
+    # TFT footer uses the WiFi signal level. No SSID or credentials are stored.
+    network = get_network_info()
+
     # Start the dashboard API server (unauthenticated, internal use).
-    api_state = ApiState(scheduler, storage_path, mode=config.mode)
+    api_state = ApiState(scheduler, storage_path, mode=config.mode, network=network)
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 
     # Start the TFT display service (if hardware mode and display is available).
@@ -198,6 +203,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
             scheduler=scheduler,
             latest=latest,
             hostname=socket.gethostname().split(".")[0],
+            network=network,
         )
         if not display_service.start():
             log.info("display service not started (display unavailable)")

@@ -74,7 +74,7 @@ _RESPONSE_BYTES = 30
 #   0: PM1.0 mass, 1: PM2.5 mass, 2: PM4.0 mass, 3: PM10 mass,
 #   4: PM0.5 number (not in our model), 5: PM1.0 number,
 #   6: PM2.5 number, 7: PM4.0 number, 8: PM10 number,
-#   9: typical particle size (not in our model)
+#   9: typical particle size (TPS, in µm)
 _METRIC_INDICES: tuple[tuple[MetricId, int], ...] = (
     (MetricId.PM1_UG_M3, 0),
     (MetricId.PM2_5_UG_M3, 1),
@@ -84,6 +84,7 @@ _METRIC_INDICES: tuple[tuple[MetricId, int], ...] = (
     (MetricId.PM2_5_NUM_M3, 6),
     (MetricId.PM4_NUM_M3, 7),
     (MetricId.PM10_NUM_M3, 8),
+    (MetricId.TPS_UM, 9),
 )
 
 
@@ -240,7 +241,7 @@ class SPS30(SensorDriver):
         )
 
     def read(self) -> Iterator[Measurement]:
-        """Read the latest measurement, yielding all 8 supported metrics."""
+        """Read the latest measurement, yielding all 9 supported metrics."""
         if self._closed:
             raise SensorReadError("sps30: driver is closed")
         if not self._initialized:

@@ -21,6 +21,7 @@ from typing import Optional
 
 from stingray.core.latest_readings import LatestReadings
 from stingray.core.models import Measurement, MetricId, SensorId
+from stingray.core.network import NetworkInfo
 from stingray.core.scheduler import SensorScheduler
 
 from .dashboard import DisplayDashboard, SensorSnapshot
@@ -48,10 +49,12 @@ class DisplayService:
         pm25_threshold: float = 35.0,
         pm10_threshold: float = 55.0,
         refresh_interval: float = 1.0,
+        network: NetworkInfo | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._latest = latest
         self._hostname = hostname
+        self._network = network
         self._refresh_interval = refresh_interval
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -144,6 +147,7 @@ class DisplayService:
         pm25 = get(SensorId.SPS30, MetricId.PM2_5_UG_M3)
         pm4 = get(SensorId.SPS30, MetricId.PM4_UG_M3)
         pm10 = get(SensorId.SPS30, MetricId.PM10_UG_M3)
+        tps = get(SensorId.SPS30, MetricId.TPS_UM)
 
         # SCD4X metrics
         co2 = get(SensorId.SCD4X, MetricId.CO2_PPM)
@@ -161,9 +165,6 @@ class DisplayService:
         # Temperature and humidity: SHT45 is authoritative
         temperature = sht45_temp if sht45_temp is not None else scd4x_temp
         humidity = sht45_hum if sht45_hum is not None else scd4x_hum
-
-        # TPS: not available from current sensors
-        tps = None
 
         # Sensor health
         health = self._scheduler.health()
@@ -198,4 +199,5 @@ class DisplayService:
             tps=tps,
             sensor_online=any_online,
             sensor_warming=scd4x_warming,
+            wifi_rssi=self._network.wifi_rssi if self._network is not None else None,
         )

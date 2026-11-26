@@ -45,6 +45,7 @@ class SensorSnapshot:
     tps: Optional[float] = None
     sensor_online: bool = True
     sensor_warming: bool = False
+    wifi_rssi: Optional[int] = None
 
 
 class DisplayDashboard:
@@ -336,7 +337,7 @@ class DisplayDashboard:
             co2_level=co2_level,
             voc_level=voc_level,
             nox_level=nox_level,
-            wifi_rssi=None,  # TODO: Get from WiFi
+            wifi_rssi=snapshot.wifi_rssi,
             measurement_age=measurement_age,
         )
 
@@ -364,7 +365,7 @@ class DisplayDashboard:
                                                                  DisplayLevel.NEUTRAL, icon="thermometer"))
         self._send_region("humidity", self._render_sensor_tile("humidity", "HUMID", state.humidity, "%",
                                                               DisplayLevel.NEUTRAL, icon="droplet"))
-        self._send_region("tps", self._render_sensor_tile("tps", "TPS", state.tps, "kPa", DisplayLevel.NEUTRAL))
+        self._send_region("tps", self._render_sensor_tile("tps", "TPS", state.tps, "µm", DisplayLevel.NEUTRAL))
 
         self._send_region("footer", self._render_footer(state))
 

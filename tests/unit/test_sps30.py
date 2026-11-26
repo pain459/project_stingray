@@ -132,7 +132,7 @@ class TestConversions:
 
 
 class TestReadPath:
-    def test_read_yields_all_eight_metrics(self) -> None:
+    def test_read_yields_all_nine_metrics(self) -> None:
         bus = FakeTransport()
         bus.version = _valid_version()
         bus.measurement = _valid_measurement()
@@ -150,6 +150,7 @@ class TestReadPath:
             MetricId.PM2_5_NUM_M3,
             MetricId.PM4_NUM_M3,
             MetricId.PM10_NUM_M3,
+            MetricId.TPS_UM,
         ]
         assert [m.metric for m in measurements] == expected_metrics
         assert all(m.sensor is SensorId.SPS30 for m in measurements)
@@ -164,8 +165,11 @@ class TestReadPath:
         assert measurements[4].value == pytest.approx(1000.0)
         # PM10 number = 5000 (index 7)
         assert measurements[7].value == pytest.approx(5000.0)
+        # TPS (word 9) = 100 µm, passed through without scaling
+        assert measurements[8].value == pytest.approx(100.0)
         assert measurements[0].unit == "ug/m3"
         assert measurements[4].unit == "1/m3"
+        assert measurements[8].unit == "um"
 
     def test_initialize_sends_start_measurement(self) -> None:
         bus = FakeTransport()
@@ -265,7 +269,7 @@ class TestFailurePaths:
         bus.raise_on_read = None
         measurements = list(driver.read())
 
-        assert len(measurements) == 8
+        assert len(measurements) == 9
         assert driver.health().state is SensorState.READY
         assert driver.health().consecutive_failures == 0
 
@@ -359,5 +363,5 @@ def test_real_sensor_on_bus() -> None:
         measurements = list(driver.read())
     finally:
         driver.close()
-    assert len(measurements) == 8
+    assert len(measurements) == 9
     assert all(m.value >= 0.0 for m in measurements)

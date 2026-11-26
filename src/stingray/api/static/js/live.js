@@ -59,6 +59,12 @@
       const n25 = lm['sps30:pm2_5_num_m3']; setText('n25', n25 ? fmtVal(n25.value, 1) : '--');
       const n4 = lm['sps30:pm4_num_m3']; setText('n4', n4 ? fmtVal(n4.value, 1) : '--');
       const n10 = lm['sps30:pm10_num_m3']; setText('n10', n10 ? fmtVal(n10.value, 1) : '--');
+      const tps = lm['sps30:tps_um']; setText('tps', tps ? fmtVal(tps.value, 2) + ' µm' : '--');
+
+      const net = d.network || {};
+      setText('netif', net.interface || '--');
+      setText('ipaddr', net.ip_address || '--');
+      setText('wifirssi', net.wifi_rssi == null ? '--' : net.wifi_rssi + ' dBm');
 
       const h = d.health || {};
       const setStat = (id, state) => {

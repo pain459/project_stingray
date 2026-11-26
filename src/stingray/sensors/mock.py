@@ -233,6 +233,7 @@ class MockSPS30(MockSensor):
         yield self._measurement(MetricId.PM2_5_NUM_M3, round(pm25 * 100, 0), now)
         yield self._measurement(MetricId.PM4_NUM_M3, round(self._pm4 * 100, 0), now)
         yield self._measurement(MetricId.PM10_NUM_M3, round(self._pm10 * 100, 0), now)
+        yield self._measurement(MetricId.TPS_UM, round(0.5 + pm25 / 100, 2), now)
 
 
 def _state_from_failures(count: int) -> SensorState:
