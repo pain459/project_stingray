@@ -195,6 +195,68 @@ def probe_sps30(fd: int, address: int) -> None:
         print(f"  {label:12s}: {v / 100.0:.2f}")
 
 
+def probe_scd4x(fd: int, address: int) -> None:
+    print(f"\nSCD4X probe at 0x{address:02X}:")
+    
+    # Read sensor variant (command 0x202F, 3 bytes: variant, CRC)
+    try:
+        raw = read_after_write(fd, address, bytes([0x20, 0x2F]), 3, 0.001)
+    except OSError as exc:
+        print(f"  variant read failed: {exc}")
+        return
+    if len(raw) < 3:
+        print(f"  variant short read: {len(raw)} bytes")
+        return
+    variant = (raw[0] << 8) | raw[1]
+    ok = crc8_sensirion(raw[0:2]) == raw[2]
+    variant_code = (variant >> 12) & 0x0F
+    variant_names = {0: "SCD40", 1: "SCD41", 5: "SCD43"}
+    variant_name = variant_names.get(variant_code, f"Unknown({variant_code})")
+    print(f"  variant: {variant_name}  (CRC {'OK' if ok else 'FAIL'})")
+    
+    # Start periodic measurement (command 0x21B1, 3 bytes: cmd, CRC)
+    cmd = bytes([0x21, 0xB1])
+    crc = crc8_sensirion(cmd)
+    try:
+        write_block(fd, address, cmd + bytes([crc]))
+    except OSError as exc:
+        print(f"  start measurement failed: {exc}")
+        return
+    time.sleep(0.025)
+    
+    # Read measurement (command 0xEC05, 9 bytes: CO2, temp, RH + 3 CRCs)
+    try:
+        raw = read_after_write(fd, address, bytes([0xEC, 0x05]), 9, 0.005)
+    except OSError as exc:
+        print(f"  measurement read failed: {exc}")
+        return
+    if len(raw) < 9:
+        print(f"  measurement short read: {len(raw)} bytes")
+        return
+    
+    # Parse 3 16-bit values with CRCs
+    co2_raw = (raw[0] << 8) | raw[1]
+    co2_crc_ok = crc8_sensirion(raw[0:2]) == raw[2]
+    
+    temp_raw = (raw[3] << 8) | raw[4]
+    temp_crc_ok = crc8_sensirion(raw[3:5]) == raw[5]
+    
+    rh_raw = (raw[6] << 8) | raw[7]
+    rh_crc_ok = crc8_sensirion(raw[6:8]) == raw[8]
+    
+    all_ok = co2_crc_ok and temp_crc_ok and rh_crc_ok
+    
+    # Convert to engineering units
+    co2_ppm = float(co2_raw)
+    temp_c = -45.0 + 175.0 * temp_raw / 65535.0
+    rh_percent = 100.0 * rh_raw / 65535.0
+    
+    print(f"  CRCs: {'all OK' if all_ok else 'MISMATCH'}")
+    print(f"  CO2: {co2_ppm:.0f} ppm")
+    print(f"  Temperature: {temp_c:.1f} °C")
+    print(f"  Humidity: {rh_percent:.1f} %")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bus", type=int, default=1, help="I2C bus number (default 1)")
@@ -206,6 +268,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--sps30", action="store_true", help="scan, then probe SPS30 firmware + one sample"
+    )
+    parser.add_argument(
+        "--scd4x", action="store_true", help="scan, then probe SCD4X variant + one sample"
     )
     args = parser.parse_args()
 
@@ -228,6 +293,15 @@ def main() -> None:
             if sps_addr not in found:
                 print("  warning: 0x69 did not ACK; probing anyway")
             probe_sps30(fd, sps_addr)
+        elif args.scd4x:
+            print(f"Scanning bus {args.bus} (0x08-0x77):")
+            found = scan(fd)
+            devices = ", ".join(f"0x{a:02X}" for a in found) if found else "(none)"
+            print(f"  devices: {devices}")
+            scd_addr = 0x62
+            if scd_addr not in found:
+                print("  warning: 0x62 did not ACK; probing anyway")
+            probe_scd4x(fd, scd_addr)
         else:
             print(f"Probing bus {args.bus} at 0x{args.address:02X}:")
             print(f"  {'ACK' if probe_address(fd, args.address) else 'no ACK'}")

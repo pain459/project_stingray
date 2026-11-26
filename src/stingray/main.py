@@ -22,6 +22,7 @@ from stingray.core.models import SensorId
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
+from stingray.sensors.scd4x import SCD4X
 from stingray.sensors.sht45 import SHT45
 from stingray.sensors.sps30 import SPS30
 from stingray.storage.parquet_store import ParquetWriter, apply_retention
@@ -31,7 +32,7 @@ log = logging.getLogger("stingray")
 #: Hardware drivers that exist today. Onboarding is deliberately incremental:
 #: a sensor listed here has a real driver, everything else must stay disabled
 #: in hardware mode so a half-finished bring-up cannot silently produce gaps.
-_HARDWARE_READY: frozenset[SensorId] = frozenset({SensorId.SHT45, SensorId.SPS30})
+_HARDWARE_READY: frozenset[SensorId] = frozenset({SensorId.SHT45, SensorId.SCD4X, SensorId.SPS30})
 
 _DEFAULT_CONFIG = (
     Path(__file__).resolve().parent.parent.parent.parent / "config" / "application.example.yaml"
