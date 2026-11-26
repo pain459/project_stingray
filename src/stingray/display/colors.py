@@ -28,6 +28,21 @@ ORANGE = 0xFD20
 CYAN = 0x07FF
 BLUE = 0x001F
 
+# Dictionary format for easy access by name
+COLORS = {
+    "black": BLACK,
+    "navy": NAVY,
+    "good": DARK_GREEN,
+    "warning": YELLOW,
+    "bad": RED,
+    "neutral": DARK_GREY,
+    "white": WHITE,
+    "light_grey": LIGHT_GREY,
+    "green": GREEN,
+    "orange": ORANGE,
+    "cyan": CYAN,
+}
+
 
 def rgb565_to_rgb(r565: int) -> tuple[int, int, int]:
     """Convert RGB565 to RGB888."""
