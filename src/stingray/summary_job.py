@@ -122,7 +122,14 @@ def call_ollama(
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "format": "json",
+        "format": {
+            "type": "object",
+            "properties": {
+                "headline": {"type": "string"},
+                "summary": {"type": "string"},
+            },
+            "required": ["headline", "summary"],
+        },
         "keep_alive": 0,
         "options": {
             "temperature": 0,

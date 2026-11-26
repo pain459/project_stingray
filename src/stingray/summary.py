@@ -7,7 +7,6 @@ values, thresholds, actions, or medical claims.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -256,26 +255,35 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
 
 
 def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
-    """Build a compact, fact-only prompt for the local model."""
-    allowed = {
-        "headline": "Short headline, max 90 characters.",
-        "summary": "Two or three plain sentences, max 100 words.",
-    }
-    payload = {
-        "period": facts.window_end.isoformat(),
-        "metrics": facts.to_jsonable()["metrics"],
-        "findings": [f.to_jsonable() for f in findings],
-    }
-    return (
-        "You write a brief indoor air-quality update for a home sensor dashboard. "
-        "Use only the supplied metrics and findings. "
-        "Repeat supplied numbers exactly if you use them. "
-        "Do not calculate, estimate, diagnose, mention outdoor air, or invent actions. "
-        "Be calm and practical. Return JSON only.\n"
-        f"Required keys: {json.dumps(allowed)}\n"
-        f"Data: {json.dumps(payload, sort_keys=True)}\n"
-        "JSON:"
+    """Build a short, fact-only prompt that tiny models can follow reliably."""
+    keys = (
+        "pm2_5_ug_m3",
+        "co2_ppm",
+        "voc_index",
+        "nox_index",
+        "temperature_c",
+        "relative_humidity_percent",
+        "tps_um",
     )
+    lines = ["Facts (averages over the last hour):"]
+    for key in keys:
+        f = facts.metrics.get(key)
+        if f is None:
+            continue
+        lines.append(f"- {key}: avg {_fmt(f.avg)}, peak {_fmt(f.maximum)} {f.unit}")
+    lines.append("Findings:")
+    for finding in findings:
+        lines.append(f"- {finding.message}")
+    lines.extend(
+        [
+            "Write a calm indoor air-quality update.",
+            "Use only these facts and findings. "
+            "Do not add numbers, medical claims, or outdoor claims.",
+            "Reply with exactly this JSON shape and nothing else:",
+            '{"headline":"short headline","summary":"two short sentences"}',
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _allowed_number_tokens(facts: HourlyFacts) -> set[str]:
