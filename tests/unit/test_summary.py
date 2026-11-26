@@ -102,6 +102,26 @@ class TestValidation:
         )
         assert "unapproved numbers" in error
 
+    def test_accepts_threshold_number_from_finding(self) -> None:
+        findings = derive_findings(_facts(relative_humidity_percent=70), ThresholdsConfig())
+        headline, text, error = validate_model_payload(
+            {
+                "headline": "Humidity needs attention",
+                "summary": "Humidity averaged 70.0%, above the 65.0% guide.",
+            },
+            _facts(relative_humidity_percent=70),
+            findings,
+        )
+        assert not error
+        assert "65.0" in text
+
+    def test_rejects_copied_template(self) -> None:
+        _, _, error = validate_model_payload(
+            {"headline": "A short headline", "summary": "Two short sentences."},
+            _facts(),
+        )
+        assert "copied the example template" in error
+
     def test_rejects_medical_claim(self) -> None:
         _, _, error = validate_model_payload(
             {"headline": "You are diagnosed", "summary": "This diagnoses asthma."},

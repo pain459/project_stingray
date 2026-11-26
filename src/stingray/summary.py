@@ -26,6 +26,10 @@ _LABEL_TOKENS = (
     "SGP41",
     "SPS30",
     "NOx",
+    "ug/m3",
+    "ug/m³",
+    "µg/m³",
+    "degC",
 )
 
 _FORBIDDEN_CLAIMS = (
@@ -286,13 +290,25 @@ def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
     return "\n".join(lines)
 
 
-def _allowed_number_tokens(facts: HourlyFacts) -> set[str]:
+def _allowed_number_tokens(
+    facts: HourlyFacts, findings: list[Finding] | None = None
+) -> set[str]:
     tokens: set[str] = {str(int(facts.window_end.timestamp())), "1"}
     for f in facts.metrics.values():
         for value in (f.avg, f.minimum, f.maximum, f.first, f.last, f.change_pct or 0.0):
             for digits in (0, 1, 2, 3):
                 tokens.add(_fmt(value, digits))
             tokens.add(str(int(round(value))))
+    for finding in findings or []:
+        for text in (finding.message, finding.action):
+            for token in re.findall(r"\d+(?:\.\d+)?", text):
+                tokens.add(token)
+                try:
+                    value = float(token)
+                except ValueError:
+                    continue
+                for digits in (0, 1, 2, 3):
+                    tokens.add(_fmt(value, digits))
     return tokens
 
 
@@ -303,7 +319,9 @@ def _unapproved_numbers(text: str, allowed: set[str]) -> list[str]:
     return [n for n in re.findall(r"\d+(?:\.\d+)?", cleaned) if n not in allowed]
 
 
-def validate_model_payload(payload: Any, facts: HourlyFacts) -> tuple[str, str, str]:
+def validate_model_payload(
+    payload: Any, facts: HourlyFacts, findings: list[Finding] | None = None
+) -> tuple[str, str, str]:
     """Return (headline, summary, error). Error is empty when payload is valid."""
     if not isinstance(payload, dict):
         return "", "", "model response was not a JSON object"
@@ -320,7 +338,12 @@ def validate_model_payload(payload: Any, facts: HourlyFacts) -> tuple[str, str, 
     low = (headline + " " + summary).lower()
     if any(word in low for word in _FORBIDDEN_CLAIMS):
         return "", "", "model response contained a medical claim"
-    allowed = _allowed_number_tokens(facts)
+    if any(
+        phrase in low
+        for phrase in ("short headline", "two short sentences", "short status line")
+    ):
+        return "", "", "model response copied the example template"
+    allowed = _allowed_number_tokens(facts, findings)
     bad = _unapproved_numbers(headline + " " + summary, allowed)
     if bad:
         return "", "", f"model response contained unapproved numbers: {', '.join(bad[:5])}"
@@ -366,7 +389,7 @@ def make_summary(
     """Create the final Summary, falling back safely if needed."""
     headline, text, reason = "", "", model_error
     if payload is not None and not reason:
-        headline, text, reason = validate_model_payload(payload, facts)
+        headline, text, reason = validate_model_payload(payload, facts, findings)
     if not headline or not text:
         headline, text = render_fallback(facts, findings)
         reason = reason or "model output rejected"
