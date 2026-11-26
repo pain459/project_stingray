@@ -31,6 +31,20 @@ uv run pytest          # mock-mode tests, no hardware required
 uv run stingray        # run the application (mock mode by default)
 ```
 
+## Deployment
+
+The application is deployed as a systemd service on the Pi. See
+[`docs/deployment/systemd-service.md`](docs/deployment/systemd-service.md)
+for the full deployment guide, including:
+
+- Service user setup (`monusr`)
+- File ownership and permissions
+- Systemd unit file
+- Deployment steps
+- Operations (status, logs, restart, stop)
+- Updating the application
+- Troubleshooting
+
 ## Execution order
 
 Work proceeds in phases defined in `STINGRAY_IMPLEMENTATION_PLAN.md`:
