@@ -122,7 +122,8 @@ class DisplayDashboard:
     
     def _draw_header(self, state: DisplayState) -> None:
         """Draw the header region with date and time."""
-        x, y, width, height = LAYOUT["header"]
+        region = LAYOUT["header"]
+        x, y, width, height = region.x, region.y, region.width, region.height
         
         # Background
         self.driver.fill_rectangle(x, y, width, height, COLORS["navy"])
@@ -140,7 +141,8 @@ class DisplayDashboard:
     
     def _draw_status(self, state: DisplayState) -> None:
         """Draw the status banner."""
-        x, y, width, height = LAYOUT["status"]
+        region = LAYOUT["status"]
+        x, y, width, height = region.x, region.y, region.width, region.height
         
         # Background based on overall status
         status_color = self._get_tile_color(state.overall_level)
@@ -154,7 +156,8 @@ class DisplayDashboard:
     def _draw_sensor_tile(self, region: str, label: str, value: str, unit: str, 
                          level: DisplayLevel, icon: Optional[str] = None) -> None:
         """Draw a sensor tile with label, value, and unit."""
-        x, y, width, height = LAYOUT[region]
+        r = LAYOUT[region]
+        x, y, width, height = r.x, r.y, r.width, r.height
         
         # Background
         tile_color = self._get_tile_color(level)
@@ -189,7 +192,8 @@ class DisplayDashboard:
     
     def _draw_footer(self, state: DisplayState) -> None:
         """Draw the footer with hostname, WiFi RSSI, and measurement age."""
-        x, y, width, height = LAYOUT["footer"]
+        region = LAYOUT["footer"]
+        x, y, width, height = region.x, region.y, region.width, region.height
         
         # Background
         self.driver.fill_rectangle(x, y, width, height, COLORS["navy"])

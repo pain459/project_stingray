@@ -50,3 +50,20 @@ ALL_REGIONS = [
     TPS,
     FOOTER,
 ]
+
+# Dictionary format for easy access by name
+LAYOUT = {
+    "header": HEADER,
+    "status": STATUS_BANNER,
+    "pm25": PM25,
+    "co2": CO2,
+    "pm1": PM1,
+    "pm4": PM4,
+    "pm10": PM10,
+    "voc": VOC,
+    "nox": NOX,
+    "temperature": TEMPERATURE,
+    "humidity": HUMIDITY,
+    "tps": TPS,
+    "footer": FOOTER,
+}
