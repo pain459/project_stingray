@@ -60,25 +60,14 @@
       const n4 = lm['sps30:pm4_num_m3']; setText('n4', n4 ? fmtVal(n4.value, 1) : '--');
       const n10 = lm['sps30:pm10_num_m3']; setText('n10', n10 ? fmtVal(n10.value, 1) : '--');
 
-      const h = d.stats || {};
-      const setStat = (id, stats) => {
+      const h = d.health || {};
+      const setStat = (id, state) => {
         const el = $(id);
         if (!el) return;
-        if (!stats) { el.textContent = '--'; el.className = 'status'; return; }
-        // Determine status from stats
-        if (stats.reads_ok > 0 && stats.reads_failed === 0) {
-          el.textContent = 'Online';
-          el.className = 'status good';
-        } else if (stats.reads_ok > 0) {
-          el.textContent = 'Degraded';
-          el.className = 'status warn';
-        } else if (stats.reads_failed > 0) {
-          el.textContent = 'Offline';
-          el.className = 'status bad';
-        } else {
-          el.textContent = 'Idle';
-          el.className = 'status';
-        }
+        if (!state) { el.textContent = '--'; el.className = 'status'; return; }
+        const s = state.state;
+        el.textContent = s === 'ready' ? 'Online' : s === 'degraded' ? 'Degraded' : String(s).toUpperCase();
+        el.className = 'status ' + (s === 'ready' ? 'good' : s === 'degraded' ? 'warn' : 'bad');
       };
       setStat('spsstatus', h.sps30);
       setStat('scdstatus', h.scd4x);
