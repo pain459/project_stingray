@@ -57,8 +57,14 @@ def open_bus(bus: int) -> int:
         )
     except PermissionError:
         sys.exit(f"error: permission denied on {path}. Add the user to the 'i2c' group.")
-    fcntl.ioctl(fd, I2C_RETRIES, struct.pack("i", 1))
-    fcntl.ioctl(fd, I2C_TIMEOUT, struct.pack("i", 1000))  # ms
+    try:
+        fcntl.ioctl(fd, I2C_RETRIES, struct.pack("i", 1))
+    except OSError:
+        pass  # not all I2C controllers support this
+    try:
+        fcntl.ioctl(fd, I2C_TIMEOUT, struct.pack("i", 1000))  # ms
+    except OSError:
+        pass
     return fd
 
 
