@@ -162,7 +162,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
     # Start the dashboard API server (unauthenticated, internal use).
-    api_state = ApiState(scheduler, storage_path)
+    api_state = ApiState(scheduler, storage_path, mode=config.mode)
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 
     def _handle_signal(signum: int, _frame: object) -> None:

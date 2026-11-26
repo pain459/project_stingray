@@ -56,10 +56,12 @@ class ApiState:
         scheduler: SensorScheduler,
         db_path: str,
         *,
+        mode: str = "mock",
         start_time: float | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.db_path = db_path
+        self.mode = mode
         self.start_time = start_time if start_time is not None else time.monotonic()
         self._lock = threading.Lock()
 
@@ -222,7 +224,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             200,
             {
                 "uptime_seconds": round(self.state.uptime_seconds(), 1),
-                "mode": "mock",
+                "mode": self.state.mode,
                 "stats": stats_out,
                 "time": datetime.now(UTC).isoformat(),
             },
