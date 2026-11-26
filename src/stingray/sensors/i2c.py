@@ -42,6 +42,9 @@ class I2CTransport(Protocol):
     def write_byte(self, address: int, value: int) -> None:
         """Send a single command byte to ``address``."""
 
+    def write_block(self, address: int, data: list[int]) -> None:
+        """Write multiple bytes to ``address`` in a single I2C transaction."""
+
     def read(self, address: int, length: int) -> list[int]:
         """Read ``length`` bytes from ``address`` without writing first."""
 
@@ -98,6 +101,11 @@ class Smbus2Transport:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
         self._bus.write_byte(address, value)
+
+    def write_block(self, address: int, data: list[int]) -> None:
+        if self._bus is None:
+            raise SensorInitError("I2C bus is closed")
+        self._bus.write_i2c_block_data(address, 0, data)
 
     def read(self, address: int, length: int) -> list[int]:
         if self._bus is None:

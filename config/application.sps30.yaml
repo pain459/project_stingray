@@ -1,0 +1,61 @@
+# Stingray application configuration — SPS30 hardware bring-up
+#
+# Incremental onboarding: only the SPS30 is enabled. The other sensors stay
+# disabled until their drivers are onboarded one at a time (the hardware
+# driver builder raises ConfigError for any enabled sensor without a driver).
+#
+# Prerequisites on the Pi:
+#   1. I2C enabled:  dtparam=i2c_arm=on  in /boot/firmware/config.txt, then reboot
+#   2. uv sync --extra hardware
+#   3. user in the 'i2c' group (ravik already is)
+
+mode: hardware
+
+api:
+  host: 0.0.0.0
+  port: 8081
+
+storage:
+  path: /mnt/stingray/parquet
+  retention_days: 30
+
+sensors:
+  sht45:
+    enabled: false
+    i2c_bus: 1
+    address: 0x44
+    cadence_seconds: 5
+  scd4x:
+    enabled: false
+    i2c_bus: 1
+    address: 0x62
+    cadence_seconds: 5
+  sgp41:
+    enabled: false
+    i2c_bus: 1
+    address: 0x59
+    cadence_seconds: 1
+  sps30:
+    enabled: true
+    i2c_bus: 1
+    address: 0x69
+    cadence_seconds: 10
+
+display:
+  enabled: false
+  spi_device: /dev/spidev0.0
+  rotation: 0
+  refresh_seconds: 2
+
+alerts:
+  telegram:
+    enabled: false
+    cooldown_seconds: 300
+  thresholds:
+    pm2_5_ug_m3: 35.0
+    co2_ppm: 1000
+    voc_index: 100
+
+logging:
+  level: INFO
+  file: /var/log/stingray/stingray.log

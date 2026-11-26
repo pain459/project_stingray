@@ -7,6 +7,7 @@ hardware``. Usage:
     python scripts/probe_i2c.py            # scan bus 1
     python scripts/probe_i2c.py --bus 1 --address 0x44   # probe one device
     python scripts/probe_i2c.py --sht45    # scan + SHT45 serial + one sample
+    python scripts/probe_i2c.py --sps30    # scan + SPS30 firmware + one sample
 """
 
 from __future__ import annotations
@@ -29,8 +30,14 @@ CMD_MEASURE_HIGH_PRECISION = 0xFD
 CMD_READ_SERIAL = 0x89
 CMD_SOFT_RESET = 0x94
 
+# SPS30 commands (16-bit pointers)
+SPS30_CMD_START_MEASUREMENT = 0x0010
+SPS30_CMD_READ_MEASURED_VALUES = 0x0300
+SPS30_CMD_READ_VERSION = 0xD100
+SPS30_FORMAT_UINT16 = 0x05
 
-def crc8_sensirion(data: bytes) -> int:
+
+def crc8_sensirion(data: bytes | list[int]) -> int:
     crc = 0xFF
     for byte in data:
         crc ^= byte
@@ -72,6 +79,20 @@ def read_bytes(fd: int, address: int, command: int, length: int, delay_s: float)
     return os.read(fd, length)
 
 
+def write_block(fd: int, address: int, data: bytes) -> None:
+    fcntl.ioctl(fd, I2C_SLAVE_FORCE, struct.pack("i", address))
+    os.write(fd, data)
+
+
+def read_after_write(
+    fd: int, address: int, write_data: bytes, read_length: int, delay_s: float
+) -> bytes:
+    fcntl.ioctl(fd, I2C_SLAVE_FORCE, struct.pack("i", address))
+    os.write(fd, write_data)
+    time.sleep(delay_s)
+    return os.read(fd, read_length)
+
+
 def scan(fd: int) -> list[int]:
     found = []
     for address in range(0x08, 0x78):
@@ -109,6 +130,65 @@ def probe_sht45(fd: int, address: int) -> None:
     print(f"  humidity:    {rh:.2f} %RH")
 
 
+def probe_sps30(fd: int, address: int) -> None:
+    print(f"\nSPS30 probe at 0x{address:02X}:")
+    # Read firmware version (pointer 0xD100, 3 bytes: major, minor, CRC)
+    try:
+        raw = read_after_write(fd, address, bytes([0xD1, 0x00]), 3, 0.005)
+    except OSError as exc:
+        print(f"  firmware read failed: {exc}")
+        return
+    if len(raw) < 3:
+        print(f"  firmware short read: {len(raw)} bytes")
+        return
+    ok = crc8_sensirion(raw[0:2]) == raw[2]
+    print(f"  firmware: {raw[0]}.{raw[1]}  (CRC {'OK' if ok else 'FAIL'})")
+
+    # Start measurement (pointer 0x0010, 3 bytes: format, dummy, CRC)
+    data = bytes([SPS30_FORMAT_UINT16, 0x00, crc8_sensirion([SPS30_FORMAT_UINT16, 0x00])])
+    try:
+        write_block(fd, address, bytes([0x00, 0x10]) + data)
+    except OSError as exc:
+        print(f"  start measurement failed: {exc}")
+        return
+    time.sleep(0.025)
+
+    # Read measured values (pointer 0x0300, 30 bytes)
+    try:
+        raw = read_after_write(fd, address, bytes([0x03, 0x00]), 30, 0.005)
+    except OSError as exc:
+        print(f"  measurement read failed: {exc}")
+        return
+    if len(raw) < 30:
+        print(f"  measurement short read: {len(raw)} bytes")
+        return
+
+    # Parse 10 16-bit values with CRCs
+    values = []
+    all_ok = True
+    for i in range(0, 30, 3):
+        word = (raw[i] << 8) | raw[i + 1]
+        if crc8_sensirion(raw[i : i + 2]) != raw[i + 2]:
+            all_ok = False
+        values.append(word)
+
+    labels = [
+        "PM1.0 mass",
+        "PM2.5 mass",
+        "PM4.0 mass",
+        "PM10 mass",
+        "PM0.5 num",
+        "PM1.0 num",
+        "PM2.5 num",
+        "PM4.0 num",
+        "PM10 num",
+        "TPS",
+    ]
+    print(f"  CRCs: {'all OK' if all_ok else 'MISMATCH'}")
+    for label, v in zip(labels, values, strict=True):
+        print(f"  {label:12s}: {v / 100.0:.2f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bus", type=int, default=1, help="I2C bus number (default 1)")
@@ -117,6 +197,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--sht45", action="store_true", help="scan, then probe SHT45 serial + one sample"
+    )
+    parser.add_argument(
+        "--sps30", action="store_true", help="scan, then probe SPS30 firmware + one sample"
     )
     args = parser.parse_args()
 
@@ -130,6 +213,15 @@ def main() -> None:
             if args.address not in found:
                 print(f"  warning: 0x{args.address:02X} did not ACK; probing anyway")
             probe_sht45(fd, args.address)
+        elif args.sps30:
+            print(f"Scanning bus {args.bus} (0x08-0x77):")
+            found = scan(fd)
+            devices = ", ".join(f"0x{a:02X}" for a in found) if found else "(none)"
+            print(f"  devices: {devices}")
+            sps_addr = 0x69
+            if sps_addr not in found:
+                print("  warning: 0x69 did not ACK; probing anyway")
+            probe_sps30(fd, sps_addr)
         else:
             print(f"Probing bus {args.bus} at 0x{args.address:02X}:")
             print(f"  {'ACK' if probe_address(fd, args.address) else 'no ACK'}")
