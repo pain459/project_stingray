@@ -130,6 +130,7 @@ class SCD4X(SensorDriver):
 
             # Start periodic measurement
             self._write_command(CMD_START_PERIODIC_MEASUREMENT)
+            time.sleep(0.05)  # Give the sensor time to produce the first reading
             self._state = SensorState.READY
             logger.info("scd4x: periodic measurement started (5s interval)")
 
@@ -208,7 +209,8 @@ class SCD4X(SensorDriver):
             )
 
         except OSError as exc:
-            self._state = SensorState.DISCONNECTED
+            # Don't set state to DISCONNECTED on read failure - the sensor might
+            # just need a moment. The scheduler will retry.
             raise SensorDisconnectedError(f"scd4x: read failed: {exc}") from exc
 
     def _require_bus(self) -> I2CTransport:

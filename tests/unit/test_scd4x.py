@@ -212,7 +212,8 @@ class TestReadPath:
         with pytest.raises(SensorDisconnectedError):
             list(driver.read())
 
-        assert driver.state is SensorState.DISCONNECTED
+        # State remains READY after a read failure - the scheduler will retry
+        assert driver.state is SensorState.READY
 
 
 class TestVariant:
