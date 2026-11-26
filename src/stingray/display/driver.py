@@ -126,16 +126,13 @@ class ILI9341Driver:
             ((y + height - 1) >> 8) & 0xFF, (y + height - 1) & 0xFF
         ]))
 
-    def fill_rectangle(self, x: int, y: int, width: int, height: int, color: tuple[int, int, int]) -> None:
-        """Fill a rectangle with a color."""
+    def fill_rectangle(self, x: int, y: int, width: int, height: int, color: int) -> None:
+        """Fill a rectangle with a color (RGB565 integer)."""
         self.set_address_window(x, y, width, height)
         self._write_cmd(0x2C)
 
-        # Convert RGB to RGB565
-        r, g, b = color
-        color16 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-        high = (color16 >> 8) & 0xFF
-        low = color16 & 0xFF
+        high = (color >> 8) & 0xFF
+        low = color & 0xFF
 
         data = bytearray()
         for _ in range(width * height):
@@ -143,6 +140,6 @@ class ILI9341Driver:
             data.append(low)
         self._write_data(bytes(data))
 
-    def fill_screen(self, color: tuple[int, int, int]) -> None:
-        """Fill the entire screen with a color."""
+    def fill_screen(self, color: int) -> None:
+        """Fill the entire screen with a color (RGB565 integer)."""
         self.fill_rectangle(0, 0, 320, 240, color)
