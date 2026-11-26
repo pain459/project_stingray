@@ -201,7 +201,7 @@ class ParquetQuery:
         """Return the most recent measurement per (sensor, metric).
 
         Only scans the last 2 hours of data to keep this fast even with
-        large datasets.
+        large datasets. Returns an empty list if no data exists.
         """
         con = self._connect()
         try:
@@ -229,7 +229,11 @@ class ParquetQuery:
                 WHERE rn = 1
                 ORDER BY sensor, metric
             """
-            rows = con.execute(sql, params).fetchall()
+            try:
+                rows = con.execute(sql, params).fetchall()
+            except Exception:
+                # No files found or other IO error - return empty list
+                return []
             cols = ["sensor", "metric", "value", "unit", "observed_at", "quality"]
             return [dict(zip(cols, r, strict=False)) for r in rows]
         finally:
