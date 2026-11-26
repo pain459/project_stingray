@@ -124,10 +124,11 @@ class TestCrc:
 
 class TestConversions:
     def test_uint16_to_value(self) -> None:
+        # uint16 values are already in engineering units (µg/m³ or 1/m³)
         assert _uint16_to_value(0) == 0.0
-        assert _uint16_to_value(100) == 1.0
-        assert _uint16_to_value(2500) == 25.0
-        assert _uint16_to_value(65535) == pytest.approx(655.35)
+        assert _uint16_to_value(100) == 100.0
+        assert _uint16_to_value(2500) == 2500.0
+        assert _uint16_to_value(65535) == 65535.0
 
 
 class TestReadPath:
@@ -152,16 +153,17 @@ class TestReadPath:
         ]
         assert [m.metric for m in measurements] == expected_metrics
         assert all(m.sensor is SensorId.SPS30 for m in measurements)
-        # PM1.0 mass = 100 / 100 = 1.0
-        assert measurements[0].value == pytest.approx(1.0)
-        # PM2.5 mass = 200 / 100 = 2.0
-        assert measurements[1].value == pytest.approx(2.0)
-        # PM10 mass = 500 / 100 = 5.0
-        assert measurements[3].value == pytest.approx(5.0)
-        # PM1.0 number = 1000 / 100 = 10.0 (index 4)
-        assert measurements[4].value == pytest.approx(10.0)
-        # PM10 number = 5000 / 100 = 50.0 (index 7)
-        assert measurements[7].value == pytest.approx(50.0)
+        # uint16 values are already in engineering units (no scaling)
+        # PM1.0 mass = 100 (raw value passed through)
+        assert measurements[0].value == pytest.approx(100.0)
+        # PM2.5 mass = 200
+        assert measurements[1].value == pytest.approx(200.0)
+        # PM10 mass = 500
+        assert measurements[3].value == pytest.approx(500.0)
+        # PM1.0 number = 1000 (index 4)
+        assert measurements[4].value == pytest.approx(1000.0)
+        # PM10 number = 5000 (index 7)
+        assert measurements[7].value == pytest.approx(5000.0)
         assert measurements[0].unit == "ug/m3"
         assert measurements[4].unit == "1/m3"
 

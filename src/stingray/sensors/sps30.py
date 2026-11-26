@@ -100,10 +100,14 @@ def _crc8(data: bytes | list[int]) -> int:
 def _uint16_to_value(raw: int) -> float:
     """Convert a 16-bit SPS30 reading to engineering units.
 
-    Both mass (µg/m³) and number (1/m³) concentrations use the same scaling:
-    value = raw / 100.0 (datasheet specifies 0.01 resolution for both).
+    The uint16 output format returns values already in engineering units:
+    - Mass concentrations: µg/m³
+    - Number concentrations: 1/m³ (particles per cubic meter)
+    - Typical particle size: µm
+
+    No scaling is needed — the raw uint16 value IS the concentration.
     """
-    return raw / 100.0
+    return float(raw)
 
 
 class SPS30(SensorDriver):
