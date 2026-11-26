@@ -95,9 +95,9 @@ class ILI9341Driver:
         self._write_cmd(0x28)
 
         # Memory access mode - landscape mode (320x240)
-        # MADCTL 0x68 = Row/Column address swap + X-axis mirror
+        # MADCTL 0x08 = Row/Column address swap (portrait to landscape)
         self._write_cmd(0x36)
-        self._write_data(bytes([0x68]))
+        self._write_data(bytes([0x08]))
 
         # Pixel format 16-bit
         self._write_cmd(0x3A)
