@@ -4,7 +4,11 @@ alerts:
     enabled: true
   thresholds:
     co2_ppm: 1000
+    nox_index: 150
     pm2_5_ug_m3: 35.0
+    rh_high_percent: 65
+    rh_low_percent: 30
+    temperature_high_c: 30
     voc_index: 100
 api:
   host: 0.0.0.0
@@ -42,3 +46,9 @@ sensors:
 storage:
   path: /mnt/stingray/parquet
   retention_days: 30
+summary:
+  enabled: true
+  hours: 1
+  model: qwen2.5:0.5b
+  ollama_url: http://127.0.0.1:11434
+  path: /mnt/stingray/summaries

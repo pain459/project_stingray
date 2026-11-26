@@ -26,6 +26,8 @@ _ENV_OVERRIDES: dict[str, str] = {
     "alerts.telegram.bot_token": "STINGRAY_TELEGRAM_BOT_TOKEN",
     "alerts.telegram.chat_id": "STINGRAY_TELEGRAM_CHAT_ID",
     "display.timezone": "STINGRAY_DISPLAY_TZ",
+    "summary.path": "STINGRAY_SUMMARY_PATH",
+    "summary.model": "STINGRAY_SUMMARY_MODEL",
 }
 
 
@@ -58,11 +60,25 @@ class ThresholdsConfig(BaseModel):
     pm2_5_ug_m3: float = Field(default=35.0, gt=0)
     co2_ppm: float = Field(default=1000.0, gt=0)
     voc_index: float = Field(default=100.0, gt=0)
+    nox_index: float = Field(default=150.0, gt=0)
+    rh_high_percent: float = Field(default=65.0, gt=0, lt=100)
+    rh_low_percent: float = Field(default=30.0, gt=0, lt=100)
+    temperature_high_c: float = Field(default=30.0, gt=0)
 
 
 class AlertsConfig(BaseModel):
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     thresholds: ThresholdsConfig = Field(default_factory=ThresholdsConfig)
+
+
+class SummaryConfig(BaseModel):
+    """Hourly local-LLM summary generation."""
+
+    enabled: bool = False
+    path: str = "stingray-summaries"
+    model: str = "qwen2.5:0.5b"
+    ollama_url: str = "http://127.0.0.1:11434"
+    hours: float = Field(default=1.0, gt=0)
 
 
 class DisplayConfig(BaseModel):
@@ -96,6 +112,7 @@ class AppConfig(BaseModel):
     sensors: dict[str, SensorConfig] = Field(default_factory=dict)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
+    summary: SummaryConfig = Field(default_factory=SummaryConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     @field_validator("mode")

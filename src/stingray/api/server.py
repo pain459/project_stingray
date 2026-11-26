@@ -9,6 +9,7 @@ Endpoints:
     GET /api/live    -> latest reading per (sensor, metric) + sensor health
     GET /api/history -> recent measurements (for sparklines)
     GET /api/health  -> process + scheduler health
+    GET /api/summaries -> recent hourly LLM summaries
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from stingray.core.models import SensorId
 from stingray.core.network import NetworkInfo, as_dict
 from stingray.core.scheduler import SensorScheduler
 from stingray.storage.parquet_store import ParquetQuery
+from stingray.summary_store import SummaryStore
 
 log = logging.getLogger("stingray.api")
 
@@ -60,12 +62,14 @@ class ApiState:
         mode: str = "mock",
         start_time: float | None = None,
         network: NetworkInfo | None = None,
+        summaries_path: str | Path | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.db_path = db_path
         self.mode = mode
         self.start_time = start_time if start_time is not None else time.monotonic()
         self.network = network
+        self.summaries_path = Path(summaries_path) if summaries_path is not None else None
         self._lock = threading.Lock()
 
     def uptime_seconds(self) -> float:
@@ -117,6 +121,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._serve_history(query)
         elif path == "/api/health":
             self._serve_health()
+        elif path == "/api/summaries":
+            self._serve_summaries(query)
+        elif path == "/api/summaries/latest":
+            self._serve_latest_summary()
         elif path.startswith("/css/") or path.startswith("/js/"):
             self._serve_static(path)
         else:
@@ -219,6 +227,32 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "returned": len(samples),
             },
         )
+
+    def _summaries_store(self) -> SummaryStore | None:
+        if self.state.summaries_path is None:
+            return None
+        return SummaryStore(self.state.summaries_path)
+
+    def _serve_summaries(self, query: dict[str, list[str]]) -> None:
+        """Return recent hourly summaries, newest first."""
+        store = self._summaries_store()
+        if store is None:
+            _json_response(self, 200, {"summaries": [], "returned": 0})
+            return
+        limit = int(query.get("limit", ["10"])[0])
+        limit = max(1, min(limit, 100))
+        summaries = store.list(limit=limit)
+        _json_response(
+            self,
+            200,
+            {"summaries": summaries, "returned": len(summaries)},
+        )
+
+    def _serve_latest_summary(self) -> None:
+        """Return the most recent hourly summary, if one exists."""
+        store = self._summaries_store()
+        summary = store.latest() if store is not None else None
+        _json_response(self, 200, {"summary": summary})
 
     def _serve_health(self) -> None:
         """Process and scheduler health."""

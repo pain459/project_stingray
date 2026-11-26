@@ -47,6 +47,17 @@ alerts:
     pm2_5_ug_m3: 35.0
     co2_ppm: 1000
     voc_index: 100
+    nox_index: 150
+    rh_high_percent: 65
+    rh_low_percent: 30
+    temperature_high_c: 30
+
+summary:
+  enabled: false
+  path: /var/lib/stingray/summaries
+  model: qwen2.5:0.5b
+  ollama_url: http://127.0.0.1:11434
+  hours: 1
 
 logging:
   level: INFO

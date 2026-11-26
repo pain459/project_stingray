@@ -1,0 +1,18 @@
+[Unit]
+Description=Stingray hourly air-quality summary (local Ollama model)
+After=network-online.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=oneshot
+User=monusr
+Group=monusr
+WorkingDirectory=/home/ravik/src_git/project_stingray
+EnvironmentFile=-/etc/stingray/telegram.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ravik/src_git/project_stingray/.venv/bin/python -m stingray.summary_job --config /home/ravik/src_git/project_stingray/config/application.combined.yaml
+Nice=15
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-26, commit c649458. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-26, commit c64ebdf. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -24,6 +24,9 @@
 # - Session - 2026-11-26 - SHT4x and SGP41 Gas Sensor Bring-up (note:3qjpgmv87ldsmi977nbe)
 # - Session - 2026-11-26 - Dashboard JS Scope Fix and Parquet Migration (note:ce2n4yobvoy3eyg4qrqm)
 # - Session - 2026-11-26 - SPS30 TPS and Network Info (note:ao3xhogu1msrl31uv5eo)
+# - Session - 2026-11-26 - Data Provenance Sanity and Mock Cleanup (note:v5iotxf6z0oyhq502tns)
+# - Ref - project_stingray - Local LLM Feasibility on the Pi (note:6eh6ox5ycn4sjo2lk3wp)
+# - Session - 2026-11-26 - Hourly Local LLM Summary Feasibility (note:9lb5ooipkw9j1bcqr2nf)
 #
 # Critical gotchas: (1) classic <script> files share one global lexical scope, so
 # every dashboard JS file must be an IIFE; (2) never use read_i2c_block_data for
@@ -33,4 +36,7 @@
 # read shared state via self.state (self.network does not exist on the handler).
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
-# network info live on the Pi at commit c649458 (tps_um ≈ 0.6 µm, wlan0 IP/RSSI).
+# network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
+# c64ebdf: live process, active Parquet store and served JS are hardware-only; scripts/backfill.py
+# removed on Pi too. Both mock-era SQLite DBs quarantined to /mnt/stingray/archive/; temporary
+# sudoers entry should be removed by the user now that verification is complete.

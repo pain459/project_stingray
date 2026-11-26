@@ -18,8 +18,8 @@ from pathlib import Path
 from stingray.api.server import ApiState, start_api_server
 from stingray.core.config import AppConfig, load_config
 from stingray.core.errors import ConfigError, SensorInitError
-from stingray.core.models import SensorId
 from stingray.core.latest_readings import LatestReadings
+from stingray.core.models import SensorId
 from stingray.core.network import get_network_info
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
@@ -70,11 +70,7 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
     """
     drivers: list[SensorDriver] = []
     sht_driver: SHT45 | None = None
-    unsupported = [
-        sid
-        for sid in config.enabled_sensors()
-        if sid not in _HARDWARE_READY
-    ]
+    unsupported = [sid for sid in config.enabled_sensors() if sid not in _HARDWARE_READY]
     if unsupported:
         names = ", ".join(sid.value for sid in unsupported)
         raise ConfigError(
@@ -191,7 +187,13 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     network = get_network_info()
 
     # Start the dashboard API server (unauthenticated, internal use).
-    api_state = ApiState(scheduler, storage_path, mode=config.mode, network=network)
+    api_state = ApiState(
+        scheduler,
+        storage_path,
+        mode=config.mode,
+        network=network,
+        summaries_path=config.summary.path,
+    )
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 
     # Start the TFT display service (if hardware mode and display is available).
@@ -199,6 +201,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     display_service: DisplayService | None = None
     if config.mode == "hardware" and config.display.enabled:
         import socket
+
         display_service = DisplayService(
             scheduler=scheduler,
             latest=latest,

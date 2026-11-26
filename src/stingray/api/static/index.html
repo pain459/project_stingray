@@ -98,6 +98,14 @@
 </div>
 
 <div class="section">
+  <h2>Hourly summary</h2>
+  <div class="section-note" id="summaryMeta">Waiting for the first hourly summary...</div>
+  <div class="summary-headline" id="summaryHeadline">--</div>
+  <div class="summary-text" id="summaryText">No summary has been generated yet.</div>
+  <ul class="summary-actions" id="summaryActions"></ul>
+</div>
+
+<div class="section">
   <h2>System</h2>
   <div class="row"><span class="label">SPS30</span><span id="spsstatus" class="status">--</span></div>
   <div class="row"><span class="label">SCD4X</span><span id="scdstatus" class="status">--</span></div>
@@ -113,13 +121,14 @@
 
 <div class="section">
   <h2>API cadence</h2>
-  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history</div>
+  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary</div>
 </div>
 
 </div>
 <script src="js/chart.js?v=6"></script>
-<script src="js/history.js?v=6"></script>
-<script src="js/live.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/history.js?v=7"></script>
+<script src="js/live.js?v=7"></script>
+<script src="js/summary.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>

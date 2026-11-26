@@ -28,11 +28,13 @@
     window.updateHistoryControls();
     window.fetchLive();
     window.fetchSystem();
+    window.fetchSummary();
     window.loadHistory();
     window.setupChartInteractions();
 
     setInterval(window.fetchLive, 5000);
     setInterval(window.fetchSystem, 30000);
+    setInterval(window.fetchSummary, 300000);
 
     // Refresh history on a slower cadence than live values.
     setInterval(function () {
