@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-26, commit 1731c26. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-26, commit c649458. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -23,10 +23,14 @@
 # Sessions
 # - Session - 2026-11-26 - SHT4x and SGP41 Gas Sensor Bring-up (note:3qjpgmv87ldsmi977nbe)
 # - Session - 2026-11-26 - Dashboard JS Scope Fix and Parquet Migration (note:ce2n4yobvoy3eyg4qrqm)
+# - Session - 2026-11-26 - SPS30 TPS and Network Info (note:ao3xhogu1msrl31uv5eo)
 #
 # Critical gotchas: (1) classic <script> files share one global lexical scope, so
 # every dashboard JS file must be an IIFE; (2) never use read_i2c_block_data for
 # Sensirion responses -- use i2c_msg.read + i2c_rdwr; (3) stop the service before
-# running scripts/validate_gas_sensors.py or the two processes corrupt I2C reads.
+# running scripts/validate_gas_sensors.py or the two processes corrupt I2C reads;
+# (4) SPS30 uint16 TPS word is nm, not µm — divide by 1000; (5) API handler methods
+# read shared state via self.state (self.network does not exist on the handler).
 #
-# Next: confirm the 30-minute continuous gas-sensor test result (due ~20:47 IST).
+# Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
+# network info live on the Pi at commit c649458 (tps_um ≈ 0.6 µm, wlan0 IP/RSSI).
