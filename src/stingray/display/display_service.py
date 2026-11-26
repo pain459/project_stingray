@@ -1,10 +1,13 @@
 """Display service: bridges the sensor scheduler to the TFT dashboard.
 
 Runs a dedicated thread that:
-1. Drains the measurement queue to maintain a cache of the latest reading
-   per (sensor, metric).
-2. Builds a ``SensorSnapshot`` from the cache.
+1. Reads the latest sensor data from the shared ``LatestReadings`` cache.
+2. Builds a ``SensorSnapshot`` from the latest readings.
 3. Renders the dashboard on a 1-second monotonic interval.
+
+The display service does NOT drain the ``MeasurementQueue``. The storage
+drain loop is the sole drainer and updates the shared cache. This avoids
+queue contention between storage and display.
 
 A display failure never interrupts sensor acquisition or other services.
 """
@@ -14,11 +17,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import UTC, datetime
 from typing import Optional
 
+from stingray.core.latest_readings import LatestReadings
 from stingray.core.models import Measurement, MetricId, SensorId
-from stingray.core.scheduler import MeasurementQueue, SensorScheduler
+from stingray.core.scheduler import SensorScheduler
 
 from .dashboard import DisplayDashboard, SensorSnapshot
 from .driver import ILI9341Driver
@@ -30,8 +33,8 @@ class DisplayService:
     """Bridges the sensor scheduler to the TFT display.
 
     The display service runs on its own thread with a 1-second refresh
-    interval. It reads the latest sensor data from the scheduler's queue
-    and renders it to the display.
+    interval. It reads the latest sensor data from the shared
+    ``LatestReadings`` cache and renders it to the display.
 
     A display failure (SPI error, driver error) is logged but never
     propagates to the main service.
@@ -40,22 +43,18 @@ class DisplayService:
     def __init__(
         self,
         scheduler: SensorScheduler,
-        queue: MeasurementQueue,
+        latest: LatestReadings,
         hostname: str = "stingray",
         pm25_threshold: float = 35.0,
         pm10_threshold: float = 55.0,
         refresh_interval: float = 1.0,
     ) -> None:
         self._scheduler = scheduler
-        self._queue = queue
+        self._latest = latest
         self._hostname = hostname
         self._refresh_interval = refresh_interval
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-
-        # Cache of the latest measurement per (sensor, metric)
-        self._latest: dict[tuple[SensorId, MetricId], Measurement] = {}
-        self._cache_lock = threading.Lock()
 
         # Display driver and dashboard (created in start())
         self._driver: ILI9341Driver | None = None
@@ -116,9 +115,6 @@ class DisplayService:
         next_tick = time.monotonic()
         while not self._stop_event.is_set():
             try:
-                # Drain the queue to update the cache
-                self._update_cache()
-
                 # Build snapshot and render
                 snapshot = self._build_snapshot()
                 if self._dashboard is not None:
@@ -135,22 +131,12 @@ class DisplayService:
                 # We're behind schedule; reset the tick
                 next_tick = time.monotonic()
 
-    def _update_cache(self) -> None:
-        """Drain the queue and update the latest-reading cache."""
-        items = self._queue.drain()
-        if not items:
-            return
-        with self._cache_lock:
-            for m in items:
-                self._latest[(m.sensor, m.metric)] = m
-
     def _build_snapshot(self) -> SensorSnapshot:
-        """Build a SensorSnapshot from the cached latest readings."""
-        with self._cache_lock:
-            latest = dict(self._latest)
+        """Build a SensorSnapshot from the shared LatestReadings cache."""
+        cache = self._latest.snapshot()
 
         def get(sensor: SensorId, metric: MetricId) -> Optional[float]:
-            m = latest.get((sensor, metric))
+            m = cache.get((sensor, metric))
             return m.value if m is not None else None
 
         # SPS30 metrics
@@ -194,8 +180,8 @@ class DisplayService:
 
         # Timestamp: use the most recent measurement timestamp
         timestamp = 0.0
-        if latest:
-            max_observed = max(m.observed_at for m in latest.values())
+        if cache:
+            max_observed = max(m.observed_at for m in cache.values())
             timestamp = max_observed.timestamp()
 
         return SensorSnapshot(

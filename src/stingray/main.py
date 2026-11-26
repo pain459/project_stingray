@@ -19,6 +19,7 @@ from stingray.api.server import ApiState, start_api_server
 from stingray.core.config import AppConfig, load_config
 from stingray.core.errors import ConfigError, SensorInitError
 from stingray.core.models import SensorId
+from stingray.core.latest_readings import LatestReadings
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.display import DisplayService
@@ -136,12 +137,18 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     storage_path = config.storage.path
     writer = ParquetWriter(storage_path, batch_size=config.storage.batch_size)
 
+    # Shared cache of the latest reading per (sensor, metric). The storage
+    # drain loop is the sole drainer of the queue and updates this cache,
+    # so the display and API can read latest values without competing.
+    latest = LatestReadings()
+
     stop_event = threading.Event()
 
     def _drain_loop() -> None:
         while not stop_event.is_set():
             items = queue.drain()
             if items:
+                latest.update(items)
                 writer.add_many(items)
             time.sleep(0.5)
 
@@ -173,7 +180,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
         import socket
         display_service = DisplayService(
             scheduler=scheduler,
-            queue=queue,
+            latest=latest,
             hostname=socket.gethostname().split(".")[0],
         )
         if not display_service.start():
