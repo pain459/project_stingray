@@ -26,6 +26,7 @@ LIGHT_GREY = 0xC618
 GREEN = 0x07E0
 ORANGE = 0xFD20
 CYAN = 0x07FF
+BLUE = 0x001F
 
 
 def rgb565_to_rgb(r565: int) -> tuple[int, int, int]:
