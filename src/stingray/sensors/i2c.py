@@ -13,9 +13,6 @@ against a fake bus.
 from __future__ import annotations
 
 import errno
-import fcntl
-import os
-import struct
 from contextlib import suppress
 from typing import Any, Protocol
 
@@ -108,16 +105,17 @@ class Smbus2Transport:
     def write_block(self, address: int, data: list[int]) -> None:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        # Use raw os.write on the bus fd with I2C_SLAVE_FORCE to send
-        # exactly the bytes we want (no extra register byte).
-        fcntl.ioctl(self._bus.fd, 0x0706, struct.pack("i", address))
-        os.write(self._bus.fd, bytes(b & 0xFF for b in data))
+        if len(data) == 1:
+            self._bus.write_byte_data(address, 0, data[0])
+        else:
+            # write_i2c_block_data(addr, reg, data) sends [reg] + data,
+            # so use the first byte as the "register" and the rest as data.
+            self._bus.write_i2c_block_data(address, data[0], data[1:])
 
     def read(self, address: int, length: int) -> list[int]:
         if self._bus is None:
             raise SensorInitError("I2C bus is closed")
-        fcntl.ioctl(self._bus.fd, 0x0706, struct.pack("i", address))
-        data = os.read(self._bus.fd, length)
+        data = self._bus.read_i2c_block_data(address, 0, length)
         return [int(b) for b in data]
 
     def close(self) -> None:
