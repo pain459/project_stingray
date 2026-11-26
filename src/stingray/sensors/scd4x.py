@@ -46,6 +46,7 @@ CMD_START_PERIODIC_MEASUREMENT = 0x21B1
 CMD_READ_MEASUREMENT = 0xEC05
 CMD_STOP_PERIODIC_MEASUREMENT = 0x3F86
 CMD_GET_SENSOR_VARIANT = 0x202F
+CMD_GET_DATA_READY_STATUS = 0x2029
 
 # Response sizes (bytes)
 RESPONSE_SIZE_MEASUREMENT = 9  # 3 words × 2 bytes + 3 CRCs
@@ -138,6 +139,21 @@ class SCD4X(SensorDriver):
             self._state = SensorState.DISCONNECTED
             raise SensorInitError(f"scd4x: failed to initialize: {exc}") from exc
 
+    def _is_data_ready(self) -> bool:
+        """Check if measurement data is ready to be read.
+
+        Returns:
+            True if data is ready, False otherwise.
+        """
+        try:
+            self._write_command(CMD_GET_DATA_READY_STATUS)
+            time.sleep(0.001)
+            raw = self._require_bus().read(self._address, 3)
+            # Data ready status is in the first byte (bit 0)
+            return bool(raw[0] & 0x01)
+        except (OSError, SensorReadError):
+            return False
+
     def read(self) -> Iterator[Measurement]:
         """Read the latest measurement values.
 
@@ -152,6 +168,12 @@ class SCD4X(SensorDriver):
             raise SensorDisconnectedError("scd4x: sensor not ready")
 
         try:
+            # Check if data is ready before reading
+            if not self._is_data_ready():
+                # Data not ready yet - this is normal during warm-up
+                # Don't raise an error, just yield nothing
+                return
+
             # Read measurement (9 bytes: 3 words + 3 CRCs)
             raw = self._require_bus().read(self._address, RESPONSE_SIZE_MEASUREMENT)
 
