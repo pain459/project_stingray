@@ -17,14 +17,20 @@ from pathlib import Path
 
 from stingray.api.server import ApiState, start_api_server
 from stingray.core.config import AppConfig, load_config
-from stingray.core.errors import ConfigError
+from stingray.core.errors import ConfigError, SensorInitError
 from stingray.core.models import SensorId
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
+from stingray.sensors.sht45 import SHT45
 from stingray.storage.parquet_store import ParquetWriter, apply_retention
 
 log = logging.getLogger("stingray")
+
+#: Hardware drivers that exist today. Onboarding is deliberately incremental:
+#: a sensor listed here has a real driver, everything else must stay disabled
+#: in hardware mode so a half-finished bring-up cannot silently produce gaps.
+_HARDWARE_READY: frozenset[SensorId] = frozenset({SensorId.SHT45})
 
 _DEFAULT_CONFIG = (
     Path(__file__).resolve().parent.parent.parent.parent / "config" / "application.example.yaml"
@@ -45,9 +51,58 @@ def build_mock_drivers(config: AppConfig) -> list[SensorDriver]:
     return drivers
 
 
+def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
+    """Build the set of real drivers for enabled sensors.
+
+    Sensors are onboarded one at a time, so any enabled sensor without a real
+    driver is a configuration error rather than a silent no-op.
+
+    Raises:
+        ConfigError: if an enabled sensor has no hardware driver yet.
+    """
+    drivers: list[SensorDriver] = []
+    unsupported = [
+        sid
+        for sid in config.enabled_sensors()
+        if sid not in _HARDWARE_READY
+    ]
+    if unsupported:
+        names = ", ".join(sid.value for sid in unsupported)
+        raise ConfigError(
+            f"no hardware driver yet for: {names}. "
+            f"Hardware-ready sensors: {', '.join(sorted(s.value for s in _HARDWARE_READY))}. "
+            f"Set the others to 'enabled: false' while bringing sensors up one at a time."
+        )
+
+    if config.sensor_config(SensorId.SHT45).enabled:
+        sht = config.sensor_config(SensorId.SHT45)
+        # SensorConfig.address defaults to 0, meaning "not specified"; fall
+        # back to the sensor's datasheet address rather than probing 0x00.
+        drivers.append(
+            SHT45(
+                bus_number=sht.i2c_bus,
+                address=sht.address or SHT45.DEFAULT_ADDRESS,
+            )
+        )
+    return drivers
+
+
+def build_drivers(config: AppConfig) -> list[SensorDriver]:
+    """Build the driver set for the configured mode (mock or hardware)."""
+    if config.mode == "hardware":
+        return build_hardware_drivers(config)
+    return build_mock_drivers(config)
+
+
 def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     """Run the application loop. Returns a process exit code."""
-    drivers = build_mock_drivers(config)
+    drivers = build_drivers(config)
+    if not drivers:
+        log.error(
+            "no drivers to run (mode=%s); enable at least one sensor in the config",
+            config.mode,
+        )
+        return 1
     specs = build_specs_from_config(
         {name: cfg.model_dump() for name, cfg in config.sensors.items()}
     )
@@ -74,7 +129,18 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     drain_thread = threading.Thread(target=_drain_loop, name="stingray-drain", daemon=True)
     drain_thread.start()
 
-    scheduler.start()
+    try:
+        scheduler.start()
+    except SensorInitError as exc:
+        # A deployment error (missing hardware library, I2C disabled) is not
+        # recoverable at runtime: log it plainly and exit instead of dumping a
+        # traceback into the service log.
+        log.error("sensor initialization failed: %s", exc)
+        stop_event.set()
+        drain_thread.join(timeout=5)
+        scheduler.stop(timeout=10)
+        writer.flush()
+        return 1
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
     # Start the dashboard API server (unauthenticated, internal use).
@@ -180,7 +246,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     log.info("stingray starting (mode=%s)", config.mode)
-    return run(config, duration_seconds=args.duration)
+    try:
+        return run(config, duration_seconds=args.duration)
+    except ConfigError as exc:
+        log.error("configuration error: %s", exc)
+        return 1
 
 
 if __name__ == "__main__":
