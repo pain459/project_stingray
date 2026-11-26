@@ -2,6 +2,7 @@
 
 from .driver import ILI9341Driver
 from .dashboard import DisplayDashboard, SensorSnapshot
+from .display_service import DisplayService
 from .layout import LAYOUT, DISPLAY_WIDTH, DISPLAY_HEIGHT
 from .colors import COLORS, DisplayLevel
 from .state import DisplayState
@@ -9,6 +10,7 @@ from .state import DisplayState
 __all__ = [
     "ILI9341Driver",
     "DisplayDashboard",
+    "DisplayService",
     "SensorSnapshot",
     "LAYOUT",
     "DISPLAY_WIDTH",

@@ -21,6 +21,7 @@ from stingray.core.errors import ConfigError, SensorInitError
 from stingray.core.models import SensorId
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
+from stingray.display import DisplayService
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
 from stingray.sensors.scd4x import SCD4X
 from stingray.sensors.sht45 import SHT45
@@ -165,6 +166,20 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
     api_state = ApiState(scheduler, storage_path, mode=config.mode)
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 
+    # Start the TFT display service (if hardware mode and display is available).
+    # A display failure must not interrupt sensor acquisition or other services.
+    display_service: DisplayService | None = None
+    if config.mode == "hardware" and config.display.enabled:
+        import socket
+        display_service = DisplayService(
+            scheduler=scheduler,
+            queue=queue,
+            hostname=socket.gethostname().split(".")[0],
+        )
+        if not display_service.start():
+            log.info("display service not started (display unavailable)")
+            display_service = None
+
     def _handle_signal(signum: int, _frame: object) -> None:
         log.info("received signal %d, shutting down", signum)
         stop_event.set()
@@ -188,6 +203,8 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
                 last_retention = now
     finally:
         stop_event.set()
+        if display_service is not None:
+            display_service.stop(timeout=5)
         api_server.shutdown()
         drain_thread.join(timeout=5)
         scheduler.stop(timeout=10)
