@@ -309,8 +309,17 @@ class SPS30(SensorDriver):
         return (raw[0], raw[1])
 
     def _read_serial_number(self) -> str:
-        """Read the serial number (up to 48 bytes of hex pairs + CRCs)."""
-        raw = self._read_command(CMD_READ_SERIAL, 48)
+        """Read the serial number (up to 48 bytes of hex pairs + CRCs).
+
+        Reads in 30-byte chunks to stay within the SMBus block max of 32.
+        """
+        raw: list[int] = []
+        offset = 0
+        while offset < 48:
+            chunk_len = min(30, 48 - offset)
+            chunk = self._read_command(CMD_READ_SERIAL + offset, chunk_len)
+            raw.extend(chunk)
+            offset += chunk_len
         chars: list[str] = []
         for i in range(0, len(raw) - 2, 3):
             word = (raw[i] << 8) | raw[i + 1]
