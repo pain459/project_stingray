@@ -74,7 +74,7 @@ _RESPONSE_BYTES = 30
 #   0: PM1.0 mass, 1: PM2.5 mass, 2: PM4.0 mass, 3: PM10 mass,
 #   4: PM0.5 number (not in our model), 5: PM1.0 number,
 #   6: PM2.5 number, 7: PM4.0 number, 8: PM10 number,
-#   9: typical particle size (TPS, in µm)
+#   9: typical particle size (TPS, in nm — see _tps_to_um)
 _METRIC_INDICES: tuple[tuple[MetricId, int], ...] = (
     (MetricId.PM1_UG_M3, 0),
     (MetricId.PM2_5_UG_M3, 1),
@@ -101,14 +101,21 @@ def _crc8(data: bytes | list[int]) -> int:
 def _uint16_to_value(raw: int) -> float:
     """Convert a 16-bit SPS30 reading to engineering units.
 
-    The uint16 output format returns values already in engineering units:
-    - Mass concentrations: µg/m³
-    - Number concentrations: 1/m³ (particles per cubic meter)
-    - Typical particle size: µm
-
-    No scaling is needed — the raw uint16 value IS the concentration.
+    The uint16 output format returns mass concentrations in µg/m³ and number
+    concentrations in 1/m³ already scaled — the raw word IS the value.
+    Typical particle size is the exception; see :func:`_tps_to_um`.
     """
     return float(raw)
+
+
+def _tps_to_um(raw: int) -> float:
+    """Convert the SPS30 typical particle size word from nm to µm.
+
+    The datasheet lists the uint16 TPS field (bytes 18..19) in **nm**, while
+    the float output field is in µm. A raw value of 566 therefore means
+    0.566 µm, which matches the sensor's expected ~0.5 µm particle size.
+    """
+    return raw / 1000.0
 
 
 class SPS30(SensorDriver):
@@ -267,8 +274,8 @@ class SPS30(SensorDriver):
         self._last_read_wall = observed_at
 
         for metric, idx in _METRIC_INDICES:
-            value = _uint16_to_value(values[idx])
-            yield self._measurement(metric, value, observed_at)
+            convert = _tps_to_um if metric is MetricId.TPS_UM else _uint16_to_value
+            yield self._measurement(metric, convert(values[idx]), observed_at)
 
     def health(self) -> SensorHealth:
         if not self._initialized and not self._closed:

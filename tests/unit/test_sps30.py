@@ -23,6 +23,7 @@ from stingray.sensors.sps30 import (
     FORMAT_UINT16,
     SPS30,
     _crc8,
+    _tps_to_um,
     _uint16_to_value,
 )
 
@@ -165,11 +166,15 @@ class TestReadPath:
         assert measurements[4].value == pytest.approx(1000.0)
         # PM10 number = 5000 (index 7)
         assert measurements[7].value == pytest.approx(5000.0)
-        # TPS (word 9) = 100 µm, passed through without scaling
-        assert measurements[8].value == pytest.approx(100.0)
+        # TPS (word 9) = 100 nm, converted to 0.1 µm
+        assert measurements[8].value == pytest.approx(0.1)
         assert measurements[0].unit == "ug/m3"
         assert measurements[4].unit == "1/m3"
         assert measurements[8].unit == "um"
+
+    def test_tps_nm_to_um(self) -> None:
+        assert _tps_to_um(566) == pytest.approx(0.566)
+        assert _tps_to_um(0) == pytest.approx(0.0)
 
     def test_initialize_sends_start_measurement(self) -> None:
         bus = FakeTransport()

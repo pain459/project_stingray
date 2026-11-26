@@ -305,9 +305,12 @@ SPS30 (10 s) and SCD4X (5 s) are unchanged.
 ## TPS and network information
 
 The SPS30's tenth measurement word — *typical particle size* (TPS, µm) — is
-now published as the `tps_um` metric at 10-second cadence. It appears in
-`/api/live`, as a card on the web dashboard, in the history selector, and as
-the TPS tile on the TFT (whose unit has been corrected from kPa to µm).
+now published as the `tps_um` metric at 10-second cadence. The uint16 field is
+in **nm** per the SPS30 datasheet (the float field is in µm), so the driver
+divides the raw word by 1000 to publish µm; a raw value of 566 becomes
+0.566 µm. It appears in `/api/live`, as a card on the web dashboard, in the
+history selector, and as the TPS tile on the TFT (whose unit has been corrected
+from kPa to µm).
 
 `/api/live` also returns a `network` object with the active WiFi interface,
 its IP address and the signal level in dBm. It is derived with standard

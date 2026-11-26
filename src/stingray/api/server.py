@@ -177,7 +177,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             {
                 "live": live,
                 "health": health,
-                "network": as_dict(self.network) if self.network is not None else None,
+                "network": as_dict(self.state.network) if self.state.network is not None else None,
                 "total": total,
             },
         )
