@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-26, commit c64ebdf. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-26, commit 83bfc10. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -9,6 +9,7 @@
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
 # - Gotcha - project_stingray - Sensirion I2C Protocol Traps (note:fcgj8n7po6773f0a6vgp)
+# - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
 #
 # Code maps
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
@@ -18,6 +19,7 @@
 # - Code Map - project_stingray - SHT45 Driver (note:zr1sm26kwprguqo69w6a)
 # - Code Map - project_stingray - SPS30 Driver (note:gqbf2r8u9enjtznd3tke)
 # - Code Map - project_stingray - SCD4X Driver (note:7arty6f93nuk275efbwy)
+# - Code Map - project_stingray - Hourly Local LLM Summary (note:bsk7ps9p9c7tx2g3orv3)
 # - Code Map - project_stingray - SQLite Storage and Retention (note:7o7rfj8x91ioklg3mgd7) [SUPERSEDED]
 #
 # Sessions
@@ -40,3 +42,6 @@
 # c64ebdf: live process, active Parquet store and served JS are hardware-only; scripts/backfill.py
 # removed on Pi too. Both mock-era SQLite DBs quarantined to /mnt/stingray/archive/; temporary
 # sudoers entry should be removed by the user now that verification is complete.
+# Hourly local-LLM summary deployed at 83bfc10: qwen2.5:0.5b, Ollama localhost-only,
+# live summary via /api/summaries/latest; Telegram sender implemented but credentials
+# in /etc/stingray/telegram.env are still pending. Never run summary_job during gas validation.
