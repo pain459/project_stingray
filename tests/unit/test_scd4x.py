@@ -74,7 +74,7 @@ class FakeTransport:
 
 
 def _driver(bus: FakeTransport) -> SCD4X:
-    return SCD4X(transport=bus)
+    return SCD4X(bus=bus)
 
 
 class TestCRC:

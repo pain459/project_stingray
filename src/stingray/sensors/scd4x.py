@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterator
+from contextlib import suppress
 from datetime import datetime
 
 from stingray.core.errors import (
@@ -31,8 +32,9 @@ from stingray.core.errors import (
     SensorInitError,
     SensorReadError,
 )
-from stingray.core.models import MetricId, SensorId, SensorState
-from stingray.sensors.i2c import I2CTransport
+from stingray.core.models import Measurement, MetricId, SensorHealth, SensorId, SensorState
+from stingray.core.sensor_protocol import SensorDriver
+from stingray.sensors.i2c import I2CTransport, Smbus2Transport
 
 logger = logging.getLogger(__name__)
 
@@ -70,24 +72,31 @@ def _rh_to_percent(raw: int) -> float:
     return 100.0 * raw / 65535.0
 
 
-class SCD4X:
+class SCD4X(SensorDriver):
     """Sensirion SCD4X CO2 sensor driver.
 
     Measures CO2 (ppm), temperature (°C), and relative humidity (%).
     Uses periodic measurement mode with 5-second update interval.
     """
 
+    DEFAULT_ADDRESS = 0x62
+
     def __init__(
         self,
-        transport: I2CTransport,
+        *,
+        bus: I2CTransport | None = None,
+        bus_number: int = 1,
         address: int = DEFAULT_ADDRESS,
         read_timeout: float = 2.0,
     ) -> None:
-        self._transport = transport
+        self._bus = bus
+        self._owns_bus = bus is None
+        self._bus_number = bus_number
         self._address = address
         self._read_timeout = read_timeout
         self._state = SensorState.DISCONNECTED
         self._last_read: datetime | None = None
+        self._closed = False
 
     @property
     def sensor_id(self) -> SensorId:
@@ -103,6 +112,9 @@ class SCD4X:
         Raises:
             SensorInitError: If the sensor is not present or fails to respond.
         """
+        if self._bus is None:
+            self._bus = Smbus2Transport(self._bus_number)
+
         try:
             # Check if sensor is present by reading sensor variant
             variant = self._read_variant()
@@ -136,7 +148,7 @@ class SCD4X:
 
         try:
             # Read measurement (9 bytes: 3 words + 3 CRCs)
-            raw = self._transport.read(self._address, RESPONSE_SIZE_MEASUREMENT)
+            raw = self._require_bus().read(self._address, RESPONSE_SIZE_MEASUREMENT)
 
             # Parse CO2 (word 0)
             co2_raw = (raw[0] << 8) | raw[1]
@@ -162,6 +174,7 @@ class SCD4X:
             rh_percent = _rh_to_percent(rh_raw)
 
             observed_at = datetime.now(datetime.now().astimezone().tzinfo)
+            received_at = datetime.now(datetime.now().astimezone().tzinfo)
             self._last_read = observed_at
 
             # Yield measurements
@@ -171,6 +184,7 @@ class SCD4X:
                 value=co2_ppm,
                 unit="ppm",
                 observed_at=observed_at,
+                received_at=received_at,
             )
             yield Measurement(
                 sensor=SensorId.SCD4X,
@@ -178,6 +192,7 @@ class SCD4X:
                 value=temp_c,
                 unit="degC",
                 observed_at=observed_at,
+                received_at=received_at,
             )
             yield Measurement(
                 sensor=SensorId.SCD4X,
@@ -185,24 +200,31 @@ class SCD4X:
                 value=rh_percent,
                 unit="%",
                 observed_at=observed_at,
+                received_at=received_at,
             )
 
         except OSError as exc:
             self._state = SensorState.DISCONNECTED
             raise SensorDisconnectedError(f"scd4x: read failed: {exc}") from exc
 
+    def _require_bus(self) -> I2CTransport:
+        """Ensure the bus is available, raising if not."""
+        if self._bus is None:
+            raise SensorInitError("scd4x: I2C transport is not open")
+        return self._bus
+
     def _write_command(self, command: int) -> None:
         """Write a 16-bit command with CRC to the sensor."""
         msb = (command >> 8) & 0xFF
         lsb = command & 0xFF
         crc = _crc8([msb, lsb])
-        self._transport.write_block(self._address, [msb, lsb, crc])
+        self._require_bus().write_block(self._address, [msb, lsb, crc])
 
     def _read_variant(self) -> int:
         """Read the sensor variant (SCD40/SCD41/SCD43)."""
         self._write_command(CMD_GET_SENSOR_VARIANT)
         time.sleep(0.001)  # Wait 1 ms command execution time
-        raw = self._transport.read(self._address, RESPONSE_SIZE_VARIANT)
+        raw = self._require_bus().read(self._address, RESPONSE_SIZE_VARIANT)
         variant = (raw[0] << 8) | raw[1]
         crc = raw[2]
         if _crc8([raw[0], raw[1]]) != crc:
@@ -216,27 +238,21 @@ class SCD4X:
         names = {0: "SCD40", 1: "SCD41", 5: "SCD43"}
         return names.get(code, f"Unknown({code})")
 
-
-class Measurement:
-    """A single sensor measurement."""
-
-    def __init__(
-        self,
-        sensor: SensorId,
-        metric: MetricId,
-        value: float,
-        unit: str,
-        observed_at: datetime,
-    ) -> None:
-        self.sensor = sensor
-        self.metric = metric
-        self.value = value
-        self.unit = unit
-        self.observed_at = observed_at
-
-    def __repr__(self) -> str:
-        return (
-            f"Measurement(sensor={self.sensor.value}, "
-            f"metric={self.metric.value}, value={self.value}, "
-            f"unit={self.unit}, observed_at={self.observed_at.isoformat()})"
+    def health(self) -> SensorHealth:
+        """Return the current health status of the sensor."""
+        return SensorHealth(
+            sensor=SensorId.SCD4X,
+            state=self._state,
+            last_read_at=self._last_read,
         )
+
+    def close(self) -> None:
+        """Release the bus. Idempotent and never raises."""
+        if self._closed:
+            return
+        self._closed = True
+        bus = self._bus
+        self._bus = None
+        if bus is not None and self._owns_bus:
+            with suppress(Exception):  # close must never raise
+                bus.close()

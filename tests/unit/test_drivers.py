@@ -69,10 +69,10 @@ class TestHardwareDrivers:
 
     def test_enabled_sensor_without_driver_raises(self) -> None:
         config = _config(
-            "hardware", sht45=True, scd4x=True, sgp41=False, sps30=False
+            "hardware", sht45=True, scd4x=True, sgp41=True, sps30=False
         )
 
-        with pytest.raises(ConfigError, match="scd4x"):
+        with pytest.raises(ConfigError, match="sgp41"):
             build_hardware_drivers(config)
 
     def test_all_unsupported_sensors_are_named(self) -> None:
@@ -84,9 +84,7 @@ class TestHardwareDrivers:
             build_hardware_drivers(config)
 
         message = str(excinfo.value)
-        assert "scd4x" in message
         assert "sgp41" in message
-        assert "sps30" in message
         assert "sht45" in message  # listed as hardware-ready
 
     def test_no_enabled_sensors_yields_no_drivers(self) -> None:

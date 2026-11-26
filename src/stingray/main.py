@@ -94,6 +94,14 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
                 address=sps.address or SPS30.DEFAULT_ADDRESS,
             )
         )
+    if config.sensor_config(SensorId.SCD4X).enabled:
+        scd = config.sensor_config(SensorId.SCD4X)
+        drivers.append(
+            SCD4X(
+                bus_number=scd.i2c_bus,
+                address=scd.address or SCD4X.DEFAULT_ADDRESS,
+            )
+        )
     return drivers
 
 
