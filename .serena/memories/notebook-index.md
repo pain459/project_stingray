@@ -43,5 +43,6 @@
 # removed on Pi too. Both mock-era SQLite DBs quarantined to /mnt/stingray/archive/; temporary
 # sudoers entry should be removed by the user now that verification is complete.
 # Hourly local-LLM summary deployed at 83bfc10: qwen2.5:0.5b, Ollama localhost-only,
-# live summary via /api/summaries/latest; Telegram sender implemented but credentials
-# in /etc/stingray/telegram.env are still pending. Never run summary_job during gas validation.
+# live summary via /api/summaries/latest; Telegram delivery verified 23:23 IST via
+# /etc/stingray/telegram.env (root:root 0600) and the hourly systemd unit.
+# Never run summary_job or validate_gas_sensors.py while the other is active.
