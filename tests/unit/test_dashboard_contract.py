@@ -22,6 +22,12 @@ def test_store_owns_datapoint_fetches() -> None:
     assert "setInterval(tick" in store
 
 
+def test_history_url_appends_to_existing_query_string() -> None:
+    store = _js("store.js")
+    assert "HISTORY_URL + '&metric='" in store
+    assert "HISTORY_URL + '?metric='" not in store
+
+
 def test_widgets_do_not_fetch_datapoints_directly() -> None:
     for name in ("app.js", "live.js", "history.js"):
         assert "fetch(" not in _js(name), name
@@ -44,7 +50,7 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
     html = (_STATIC / "index.html").read_text(encoding="utf-8")
     scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
     assert scripts == [
-        "js/store.js?v=1",
+        "js/store.js?v=2",
         "js/chart.js?v=7",
         "js/history.js?v=12",
         "js/live.js?v=12",

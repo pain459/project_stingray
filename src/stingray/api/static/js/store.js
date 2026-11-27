@@ -208,7 +208,7 @@
     if (!opts.force && since === null && cached && Date.now() - cached.fetchedAt < HISTORY_TTL_MS) {
       return Promise.resolve(cached);
     }
-    let url = HISTORY_URL + '?metric=' + encodeURIComponent(metric) +
+    let url = HISTORY_URL + '&metric=' + encodeURIComponent(metric) +
       '&hours=' + encodeURIComponent(hours) + '&limit=900';
     if (since !== null) url += '&since=' + encodeURIComponent(since);
     const inflightKey = key + '|' + (since === null ? 'new' : String(since));
