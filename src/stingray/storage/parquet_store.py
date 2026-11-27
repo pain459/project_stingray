@@ -176,6 +176,19 @@ class ParquetWriter:
 # ---------------------------------------------------------------------------
 
 
+# DuckDB defaults to 32 threads regardless of core count. On the 4-core Pi,
+# dashboard polling then starves the local Ollama inference that shares the CPU.
+# Read queries scan small time windows, so two threads are plenty.
+_READ_QUERY_THREADS = 2
+
+
+def connect_read_limited() -> duckdb.DuckDBPyConnection:
+    """Open a DuckDB connection with a small, Ollama-friendly thread budget."""
+    con = duckdb.connect()
+    con.execute(f"SET threads={_READ_QUERY_THREADS}")
+    return con
+
+
 class ParquetQuery:
     """Read-side queries over Hive-partitioned Parquet files using DuckDB.
 
@@ -189,7 +202,7 @@ class ParquetQuery:
         self._glob = str(self._base_dir / "**" / "*.parquet")
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
-        return duckdb.connect()
+        return connect_read_limited()
 
     def _table_ref(self) -> str:
         """Return the DuckDB table reference for all Parquet files."""

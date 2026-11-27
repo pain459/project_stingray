@@ -207,6 +207,9 @@
 
   function pollAfterRefresh(previousGenerated) {
     stopPolling();
+    // Ollama can take several minutes on the Pi (300 s request timeout), so
+    // follow the server's busy flag instead of stopping after a fixed 90 s.
+    const maxAttempts = 84; // 7 minutes at 5 s intervals
     let attempts = 0;
     pollTimer = setInterval(async function () {
       attempts += 1;
@@ -214,15 +217,22 @@
         const body = await fetchLatest();
         applyRefreshState(body.refresh);
         const summary = body && body.summary;
-        if (summary && summary.generated_at !== previousGenerated) {
+        const changed = !!summary && summary.generated_at !== previousGenerated;
+        if (changed) {
           render(summary);
           setStatus('Summary ready');
           stopPolling();
           return;
         }
-        if ((!body.refresh || !body.refresh.busy) || attempts >= 18) {
+        const busy = !!(body.refresh && body.refresh.busy);
+        if (!busy) {
           if (summary) render(summary);
-          setStatus(attempts >= 18 ? 'Still generating - check shortly' : 'Summary ready');
+          setStatus('Run finished without a new summary - check the service log');
+          stopPolling();
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          setStatus('Still generating - check the service log');
           stopPolling();
         }
       } catch (err) {

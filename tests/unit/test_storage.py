@@ -12,6 +12,7 @@ from stingray.storage.parquet_store import (
     ParquetQuery,
     ParquetWriter,
     apply_retention,
+    connect_read_limited,
 )
 
 
@@ -80,6 +81,17 @@ class TestWriter:
         # No .tmp files should remain
         tmps = list(storage_dir.rglob("*.tmp"))
         assert len(tmps) == 0
+
+
+class TestReadThreadBudget:
+    def test_read_connections_do_not_use_duckdb_default_thread_count(self) -> None:
+        con = connect_read_limited()
+        try:
+            threads = con.execute("SELECT current_setting('threads')").fetchone()
+            assert threads is not None
+            assert 1 <= int(threads[0]) <= 2
+        finally:
+            con.close()
 
 
 class TestQueries:

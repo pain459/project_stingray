@@ -24,9 +24,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import duckdb
-
 from stingray.core.config import AppConfig, load_config
+from stingray.storage.parquet_store import connect_read_limited
 from stingray.summary import (
     HourlyFacts,
     MetricFacts,
@@ -67,7 +66,7 @@ def aggregate_facts(
         GROUP BY metric
         ORDER BY metric
     """
-    con = duckdb.connect()
+    con = connect_read_limited()
     current_rows: list[tuple[Any, ...]] = []
     previous_rows: list[tuple[Any, ...]] = []
     try:

@@ -103,7 +103,16 @@ The default cooldown is 600 seconds (`summary.refresh_cooldown_seconds` in
 `config/application.combined.yaml`). It is enforced server-side and persisted
 in `/mnt/stingray/summaries/.refresh_state.json`, so restarting the dashboard
 service cannot reset it. The button shows a live countdown from the server's
-`next_allowed_at` value.
+`next_allowed_at` value. The UI polls `/api/summaries/latest` while the server
+reports `busy: true` (up to 7 minutes) instead of giving up after 90 seconds,
+because local inference can take several minutes on the Pi.
+
+**CPU budget:** read-side DuckDB connections are capped at 2 threads
+(`connect_read_limited` in `src/stingray/storage/parquet_store.py`). DuckDB's
+32-thread default made the dashboard's 5-second `/api/live` polling saturate all
+four Pi cores and starve Ollama, which caused 5-minute inference timeouts and
+deterministic fallbacks. The aggregation used by both the hourly job and the
+on-demand worker uses the same capped connection.
 
 ## Telegram and dashboard formatting
 
