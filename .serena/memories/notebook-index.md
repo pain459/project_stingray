@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main/tag commit b8e4ca3, v0.2.8 published and deployed early at 15:14 UTC via stingray-deploy poll (Pi 0.2.8 / b8e4ca3..., service active, dashboard 200, compact release controls with read-only GitHub update check); 15:15 timer then saw 0.2.8 already current. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main commit 41d0569, local browser clock + double-buffered chart + flat neon logo committed/pushed; CI 46024654005 green. Pi still serves immutable v0.2.8; awaiting release approval. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -44,6 +44,7 @@
 # - Session - 2026-11-27 - Browser-Owned Dashboard v0.2.5 Release (note:frm7su5vp9052x6720hm) [release, auto-deploy, query/load and summary verification complete; TFT untouched]
 # - Session - 2026-11-27 - Dashboard UI Modernization and v0.2.7 Release (note:9uks6aa1hg2tsleff52y) [early deploy before timer; human visual review pending]
 # - Session - 2026-11-27 - Release Control Refresh and v0.2.8 (note:t5t9gduqw9y023i2q1tl) [read-only GitHub update check; deployed early]
+# - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [main-only; Pi unchanged]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
 # - Session - 2026-11-27 - Pi CPU temperature telemetry (note:5qp0j5qpamsvp49myv8e)
