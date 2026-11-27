@@ -54,9 +54,13 @@ cfg = load_config("config/application.combined.yaml")
 print(f"config OK: mode={cfg.mode}, api_port={cfg.api.port}")
 PY
 .venv/bin/python - <<'PY'
-import duckdb, pyarrow, spidev, RPi.GPIO  # noqa: F401
+import duckdb, pyarrow, spidev  # noqa: F401
 print("native imports OK")
 PY
+# RPi.GPIO refuses to import off a Pi, so verify its compiled aarch64 extension.
+find .venv/lib -name '_GPIO*.so' -print -quit | grep -q . \
+  || { echo "RPi.GPIO extension missing" >&2; exit 1; }
+echo "RPi.GPIO extension present"
 
 echo "==> Packaging"
 cd "$RELEASES"
