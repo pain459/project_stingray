@@ -154,18 +154,23 @@
 </section>
 
 <section class="panel section deploy span-12" aria-label="Release deployment">
-  <div class="summary-head">
+  <div class="deploy-head">
     <div>
       <span class="eyebrow">Release control</span>
       <h2>Release deployment</h2>
     </div>
-    <div class="deploy-controls">
-      <span class="deploy-status" id="deployStatus">Checking deploy status...</span>
-      <button type="button" id="deployLatest" class="deploy-button">Deploy latest</button>
-      <button type="button" id="deployForce" class="deploy-button force">Force redeploy</button>
-    </div>
+    <span class="deploy-status" id="deployStatus">Checking deploy status...</span>
   </div>
-  <div class="section-note">Deploy latest installs only a newer release. Force redeploy re-downloads and reinstalls the current latest release. The service restarts during either action; no authentication is applied because this dashboard is for the trusted LAN only.</div>
+  <div class="deploy-actions">
+    <button type="button" id="deployCheck" class="deploy-button check">Check for updates</button>
+    <button type="button" id="deployLatest" class="deploy-button">Deploy latest</button>
+    <button type="button" id="deployForce" class="deploy-button force">Force redeploy</button>
+  </div>
+  <div class="deploy-update" id="deployUpdate"></div>
+  <details class="deploy-details">
+    <summary>About deploy actions</summary>
+    <p>Deploy latest installs only a newer release. Force redeploy re-downloads and reinstalls the current latest release. The service restarts during either action; no authentication is applied because this dashboard is for the trusted LAN only.</p>
+  </details>
 </section>
 
 <section class="panel section span-7" aria-label="System status">
@@ -199,7 +204,7 @@
 <script src="js/history.js?v=12"></script>
 <script src="js/live.js?v=12"></script>
 <script src="js/summary.js?v=11"></script>
-<script src="js/deploy.js?v=2"></script>
+<script src="js/deploy.js?v=3"></script>
 <script src="js/app.js?v=11"></script>
 </body>
 </html>

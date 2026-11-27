@@ -55,6 +55,18 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
         "js/history.js?v=12",
         "js/live.js?v=12",
         "js/summary.js?v=11",
-        "js/deploy.js?v=2",
+        "js/deploy.js?v=3",
         "js/app.js?v=11",
     ]
+
+
+def test_deploy_panel_has_read_only_update_check() -> None:
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    assert 'id="deployCheck"' in html
+    assert 'id="deployUpdate"' in html
+    assert "<details" in html and "About deploy actions" in html
+
+    deploy = _js("deploy.js")
+    assert "api.github.com/repos/pain459/project_stingray/releases/latest" in deploy
+    assert "window.checkDeployUpdates = checkUpdates" in deploy
+    assert "deployCheck" in deploy

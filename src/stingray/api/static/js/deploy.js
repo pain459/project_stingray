@@ -1,5 +1,6 @@
 /**
- * deploy.js — Web triggers for Pi release deployment.
+ * deploy.js — Web triggers for Pi release deployment plus a read-only GitHub
+ * release lookup.
  *
  * The deploy restarts stingray.service, so the POST returns 202 immediately and
  * this script polls /api/deploy/status until the CLI writes its final result.
@@ -10,6 +11,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  const GH_LATEST = 'https://api.github.com/repos/pain459/project_stingray/releases/latest';
   const POLL_MS = 2000;
   const MAX_POLLS = 240; // 8 minutes, longer than a typical release download.
 
@@ -21,8 +23,13 @@
     if (el) el.textContent = message || '';
   }
 
+  function setText(id, value) {
+    const el = $(id);
+    if (el) el.textContent = value || '';
+  }
+
   function setButtons(disabled) {
-    ['deployLatest', 'deployForce'].forEach(function (id) {
+    ['deployCheck', 'deployLatest', 'deployForce'].forEach(function (id) {
       const button = $(id);
       if (button) button.disabled = disabled;
     });
@@ -32,6 +39,31 @@
     if (!value) return 'unknown time';
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? 'unknown time' : d.toLocaleString();
+  }
+
+  function formatDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  }
+
+  /** Read-only GitHub release lookup; never triggers or installs a deploy. */
+  async function checkUpdates() {
+    if (busy) return;
+    setText('deployUpdate', 'Checking GitHub for the latest release...');
+    try {
+      const response = await fetch(GH_LATEST, {
+        headers: { Accept: 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const release = await response.json();
+      const tag = release.tag_name || release.name || 'unknown';
+      const published = formatDate(release.published_at);
+      setText('deployUpdate', 'Latest on GitHub: ' + tag + (published ? ' · published ' + published : ''));
+    } catch (err) {
+      setText('deployUpdate', 'Update check unavailable: ' + (err && err.message ? err.message : 'network error'));
+    }
   }
 
   function startedMillis(payload) {
@@ -167,8 +199,10 @@
   }
 
   function init() {
+    const check = $('deployCheck');
     const latest = $('deployLatest');
     const force = $('deployForce');
+    if (check) check.addEventListener('click', function () { checkUpdates(); });
     if (latest) latest.addEventListener('click', function () { trigger(false); });
     if (force) force.addEventListener('click', function () { trigger(true); });
     if (window.DP) {
@@ -182,6 +216,7 @@
 
   window.fetchDeployStatus = refreshStatus;
   window.triggerDeploy = trigger;
+  window.checkDeployUpdates = checkUpdates;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
