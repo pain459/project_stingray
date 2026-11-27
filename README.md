@@ -20,7 +20,7 @@ operational reliability, and maintainable software.
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
-- I2C and SPI enabled on the Pi (see `docs/hardware/wiring.md`)
+- I2C and SPI enabled on the Pi (see [`docs/hardware/wiring.md`](docs/hardware/wiring.md))
 - `i2c-tools`, `gpiod`, `spi-tools` installed
 
 ## Quick start
@@ -44,6 +44,23 @@ for the full deployment guide, including:
 - Operations (status, logs, restart, stop)
 - Updating the application
 - Troubleshooting
+
+## Documentation
+
+- [`docs/BUILD_GUIDE.md`](docs/BUILD_GUIDE.md) — end-to-end build from parts to
+  running service (bill of materials, OS, config, services, verification)
+- [`docs/hardware/wiring.md`](docs/hardware/wiring.md) — pinouts, bus map,
+  power and grounding rules
+- [`docs/hardware/sensors.md`](docs/hardware/sensors.md) — sensor commands,
+  conversions, warm-up and units
+- [`docs/hardware/inventory.md`](docs/hardware/inventory.md) — baseline snapshot
+  of the original host
+- [`docs/DESIGN_AND_DECISIONS.md`](docs/DESIGN_AND_DECISIONS.md) — architecture,
+  design rationale and progress
+- [`docs/deployment/systemd-service.md`](docs/deployment/systemd-service.md) —
+  service reference
+- [`docs/deployment/hourly-summary.md`](docs/deployment/hourly-summary.md) —
+  LLM summary, Telegram formatting and refresh cooldown
 
 ## Execution order
 

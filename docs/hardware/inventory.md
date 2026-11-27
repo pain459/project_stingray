@@ -121,7 +121,25 @@ plan's "previously verified" baseline note — the buses are currently off.
 | Uptime at capture | ~4 h 44 m |
 | Application services | None installed yet |
 
-## 9. Open hardware questions (must be resolved before Phase 03/05)
+## 9. As-built update (2026-11-27)
+
+The snapshot above is the **baseline at capture time**, not the current state.
+Items that have since changed on the running Pi:
+
+| Area | Baseline (2026-11-24) | As built (2026-11-27) |
+|---|---|---|
+| I²C | disabled, no `/dev/i2c-*` | enabled: `dtparam=i2c_arm=on`, `i2c-dev` loaded, `/dev/i2c-1` present |
+| SPI | disabled, no `/dev/spidev*` | enabled: `dtparam=spi=on`, `/dev/spidev0.0` and `/dev/spidev0.1` present |
+| Sensors | not connected at capture | SHT45 `0x44`, SCD4X `0x62` (SCD41), SGP41 `0x59`, SPS30 `0x69`, all on bus 1 |
+| Display | not assessed | ILI9341 on SPI0 CE0; DC BCM25 (pin 22), RESET BCM24 (pin 18) |
+| Services | none installed | `stingray.service`, `stingray-hourly-summary.timer/.service`, Ollama |
+| Storage | SD card only | SSD mounted at `/mnt/stingray` for Parquet and summaries |
+
+The fan question is unchanged: no fan is attached, and the system is operated
+without one. See [`wiring.md`](wiring.md) for the connection map and
+[`BUILD_GUIDE.md`](../BUILD_GUIDE.md) for the current build procedure.
+
+## 10. Open hardware questions (must be resolved before Phase 03/05)
 
 - [ ] Fan power/boot issue (STG-004) — unresolved; no fan currently attached.
 - [ ] DFR0918 breakout revision and terminal assignments — needs physical confirmation.
