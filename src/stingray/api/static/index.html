@@ -3,79 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>Stingray — Air Quality Monitor</title>
 <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 <div class="container">
 
-<div class="header">
-  <button id="theme" onclick="window.toggleTheme()">☀️</button>
-  <h1>🏠 Air Quality Monitor</h1>
-  <p id="dt">Loading device status...</p>
-</div>
+<header class="topbar panel span-12">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">S</span>
+    <div class="brand-copy">
+      <span class="eyebrow">Stingray · environmental telemetry</span>
+      <h1>Air Quality Monitor</h1>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="live-pill"><span class="live-dot"></span>Live telemetry</span>
+    <span class="timestamp" id="dt">Loading device status...</span>
+    <button id="theme" class="theme-toggle" type="button" onclick="window.toggleTheme()" aria-label="Toggle colour theme">☀️</button>
+  </div>
+</header>
 
-<div class="hero">
-  <div class="hero-cell"><div class="hero-label">PM2.5</div><div class="hero-value" id="p25">--</div><div class="unit">µg/m³</div></div>
-  <div class="hero-cell"><div class="hero-label">CO₂</div><div class="hero-value" id="co2">--</div><div class="unit">ppm</div></div>
-</div>
+<section class="hero panel span-12" aria-label="Primary readings">
+  <article class="hero-cell">
+    <div class="hero-label">PM2.5<span class="metric-sub">fine particulate</span></div>
+    <div class="hero-readout"><span class="hero-value" id="p25">--</span><span class="unit">µg/m³</span></div>
+    <div class="accent-rule accent-rule--green"></div>
+  </article>
+  <article class="hero-cell">
+    <div class="hero-label">CO₂<span class="metric-sub">carbon dioxide</span></div>
+    <div class="hero-readout"><span class="hero-value" id="co2">--</span><span class="unit">ppm</span></div>
+    <div class="accent-rule accent-rule--cyan"></div>
+  </article>
+</section>
 
-<div class="grid3">
-  <div class="card"><div class="title">PM1.0</div><div class="value" id="p1">--</div><div class="unit">µg/m³</div></div>
-  <div class="card"><div class="title">PM10</div><div class="value" id="p10">--</div><div class="unit">µg/m³</div></div>
-  <div class="card"><div class="title">PM4.0</div><div class="value" id="p4">--</div><div class="unit">µg/m³</div></div>
-</div>
+<section class="metric-strip" aria-label="Particulate mass concentration">
+  <article class="card"><span class="card-label">PM1.0</span><div class="card-readout"><span class="value" id="p1">--</span><span class="unit">µg/m³</span></div></article>
+  <article class="card"><span class="card-label">PM10</span><div class="card-readout"><span class="value" id="p10">--</span><span class="unit">µg/m³</span></div></article>
+  <article class="card"><span class="card-label">PM4.0</span><div class="card-readout"><span class="value" id="p4">--</span><span class="unit">µg/m³</span></div></article>
+</section>
 
-<div class="grid3">
-  <div class="card"><div class="title">SHT45 temperature</div><div class="value" id="temp">--</div><div class="unit">°C</div></div>
-  <div class="card"><div class="title">SHT45 humidity</div><div class="value" id="hum">--</div><div class="unit">%RH</div></div>
-  <div class="card"><div class="title">VOC Index</div><div class="value" id="voc">--</div><div class="unit" id="vocstate">--</div></div>
-</div>
+<section class="metric-strip" aria-label="Temperature, humidity and VOC">
+  <article class="card"><span class="card-label">SHT45 temperature</span><div class="card-readout"><span class="value" id="temp">--</span><span class="unit">°C</span></div></article>
+  <article class="card"><span class="card-label">SHT45 humidity</span><div class="card-readout"><span class="value" id="hum">--</span><span class="unit">%RH</span></div></article>
+  <article class="card"><span class="card-label">VOC index</span><div class="card-readout"><span class="value" id="voc">--</span><span class="unit" id="vocstate">--</span></div></article>
+</section>
 
-<div class="section">
+<section class="panel section span-6" aria-label="Host telemetry">
   <h2>Host telemetry — Raspberry Pi</h2>
   <div class="section-note">CPU/SoC temperature, not ambient air temperature.</div>
-  <div class="row"><span class="label">Pi CPU temperature</span><span id="picpu">--</span></div>
-</div>
+  <div class="row"><span class="label">Pi CPU temperature</span><span id="picpu" class="mono">--</span></div>
+</section>
 
-<div class="section">
+<section class="panel section span-6" aria-label="Gas quality">
   <h2>Gas quality — SGP41</h2>
   <div class="stats">
-    <div class="stat"><div class="title">VOC Index</div><div class="statv" id="voc2">--</div><div class="unit" id="vocstate2">--</div></div>
-    <div class="stat"><div class="title">NOx Index</div><div class="statv" id="nox">--</div><div class="unit" id="noxstate">--</div></div>
+    <div class="stat"><div class="title">VOC index</div><div class="statv" id="voc2">--</div><div class="unit" id="vocstate2">--</div></div>
+    <div class="stat"><div class="title">NOx index</div><div class="statv" id="nox">--</div><div class="unit" id="noxstate">--</div></div>
     <div class="stat"><div class="title">VOC raw</div><div class="statv" id="vocraw">--</div><div class="unit">counts</div></div>
   </div>
-  <div class="row"><span class="label">VOC trend</span><span id="voctrend">--</span></div>
-  <div class="row"><span class="label">NOx trend</span><span id="noxtrend">--</span></div>
-  <div class="row"><span class="label">NOx raw</span><span id="noxraw">--</span></div>
-</div>
+  <div class="row"><span class="label">VOC trend</span><span id="voctrend" class="mono">--</span></div>
+  <div class="row"><span class="label">NOx trend</span><span id="noxtrend" class="mono">--</span></div>
+  <div class="row"><span class="label">NOx raw</span><span id="noxraw" class="mono">--</span></div>
+</section>
 
-<div class="section">
-  <h2>Environmental history</h2>
-  <div class="section-note">Drag on the chart to zoom into a time range. Double-click to reset. Hover for exact values.</div>
-
-  <div class="selector-label">Metric</div>
-  <div class="selector" id="metricSelector">
-    <button data-metric="pm2_5_ug_m3" onclick="window.selectMetric('pm2_5_ug_m3')">PM2.5</button>
-    <button data-metric="pm10_ug_m3" onclick="window.selectMetric('pm10_ug_m3')">PM10</button>
-    <button data-metric="pm1_ug_m3" onclick="window.selectMetric('pm1_ug_m3')">PM1</button>
-    <button data-metric="pm4_ug_m3" onclick="window.selectMetric('pm4_ug_m3')">PM4</button>
-    <button data-metric="co2_ppm" onclick="window.selectMetric('co2_ppm')">CO₂</button>
-    <button data-metric="temperature_c" onclick="window.selectMetric('temperature_c')">Temperature</button>
-    <button data-metric="relative_humidity_percent" onclick="window.selectMetric('relative_humidity_percent')">Humidity</button>
-    <button data-metric="voc_index" onclick="window.selectMetric('voc_index')">VOC</button>
-    <button data-metric="nox_index" onclick="window.selectMetric('nox_index')">NOx</button>
-    <button data-metric="tps_um" onclick="window.selectMetric('tps_um')">TPS</button>
-    <button data-metric="cpu_temperature_c" onclick="window.selectMetric('cpu_temperature_c')">Pi CPU</button>
+<section class="panel section history span-12" aria-label="Environmental history">
+  <div class="panel-head">
+    <div>
+      <span class="eyebrow">Trend analysis</span>
+      <h2>Environmental history</h2>
+    </div>
+    <span class="panel-hint">Drag to zoom · double-click to reset · hover for exact values</span>
   </div>
 
-  <div class="selector-label">Range</div>
-  <div class="selector" id="rangeSelector">
-    <button data-hours="1" onclick="window.selectRange(1)">1h</button>
-    <button data-hours="6" onclick="window.selectRange(6)">6h</button>
-    <button data-hours="24" class="active" onclick="window.selectRange(24)">24h</button>
-    <button data-hours="168" onclick="window.selectRange(168)">7d</button>
-    <button data-hours="720" onclick="window.selectRange(720)">30d</button>
+  <div class="control-group">
+    <span class="control-label">Metric</span>
+    <div class="selector" id="metricSelector">
+      <button type="button" data-metric="pm2_5_ug_m3" onclick="window.selectMetric('pm2_5_ug_m3')">PM2.5</button>
+      <button type="button" data-metric="pm10_ug_m3" onclick="window.selectMetric('pm10_ug_m3')">PM10</button>
+      <button type="button" data-metric="pm1_ug_m3" onclick="window.selectMetric('pm1_ug_m3')">PM1</button>
+      <button type="button" data-metric="pm4_ug_m3" onclick="window.selectMetric('pm4_ug_m3')">PM4</button>
+      <button type="button" data-metric="co2_ppm" onclick="window.selectMetric('co2_ppm')">CO₂</button>
+      <button type="button" data-metric="temperature_c" onclick="window.selectMetric('temperature_c')">Temperature</button>
+      <button type="button" data-metric="relative_humidity_percent" onclick="window.selectMetric('relative_humidity_percent')">Humidity</button>
+      <button type="button" data-metric="voc_index" onclick="window.selectMetric('voc_index')">VOC</button>
+      <button type="button" data-metric="nox_index" onclick="window.selectMetric('nox_index')">NOx</button>
+      <button type="button" data-metric="tps_um" onclick="window.selectMetric('tps_um')">TPS</button>
+      <button type="button" data-metric="cpu_temperature_c" onclick="window.selectMetric('cpu_temperature_c')">Pi CPU</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <span class="control-label">Range</span>
+    <div class="selector selector--range" id="rangeSelector">
+      <button type="button" data-hours="1" onclick="window.selectRange(1)">1h</button>
+      <button type="button" data-hours="6" onclick="window.selectRange(6)">6h</button>
+      <button type="button" data-hours="24" class="active" onclick="window.selectRange(24)">24h</button>
+      <button type="button" data-hours="168" onclick="window.selectRange(168)">7d</button>
+      <button type="button" data-hours="720" onclick="window.selectRange(720)">30d</button>
+    </div>
   </div>
 
   <div class="history-head">
@@ -86,27 +113,30 @@
     <canvas id="historyChart"></canvas>
     <div class="chart-tooltip" id="chartTooltip"></div>
   </div>
-  <div class="zoom-hint">🔍 Drag to zoom · Double-click to reset · Scroll to zoom in/out</div>
+  <div class="zoom-hint">Drag to zoom · double-click to reset · scroll to zoom in/out</div>
 
-  <div class="stats" style="margin-top:14px;margin-bottom:0">
+  <div class="stats">
     <div class="stat"><div class="title">Minimum</div><div class="statv" id="hmin">--</div><div class="unit" id="hminunit"></div></div>
     <div class="stat"><div class="title">Average</div><div class="statv" id="havg">--</div><div class="unit" id="havgunit"></div></div>
     <div class="stat"><div class="title">Maximum</div><div class="statv" id="hmax">--</div><div class="unit" id="hmaxunit"></div></div>
   </div>
-</div>
+</section>
 
-<div class="section">
+<section class="panel section span-6" aria-label="Particle counts">
   <h2>Particle counts</h2>
-  <div class="row"><span class="label">PM1 count</span><span id="n1">--</span></div>
-  <div class="row"><span class="label">PM2.5 count</span><span id="n25">--</span></div>
-  <div class="row"><span class="label">PM4 count</span><span id="n4">--</span></div>
-  <div class="row"><span class="label">PM10 count</span><span id="n10">--</span></div>
-  <div class="row"><span class="label">Typical particle size</span><span id="tps">--</span></div>
-</div>
+  <div class="row"><span class="label">PM1 count</span><span id="n1" class="mono">--</span></div>
+  <div class="row"><span class="label">PM2.5 count</span><span id="n25" class="mono">--</span></div>
+  <div class="row"><span class="label">PM4 count</span><span id="n4" class="mono">--</span></div>
+  <div class="row"><span class="label">PM10 count</span><span id="n10" class="mono">--</span></div>
+  <div class="row"><span class="label">Typical particle size</span><span id="tps" class="mono">--</span></div>
+</section>
 
-<div class="section">
+<section class="panel section summary span-12" aria-label="Hourly summary">
   <div class="summary-head">
-    <h2>Hourly summary</h2>
+    <div>
+      <span class="eyebrow">Local model insight</span>
+      <h2>Hourly summary</h2>
+    </div>
     <div class="summary-controls">
       <span class="summary-cooldown" id="summaryCooldown"></span>
       <button type="button" id="summaryRefresh" class="summary-refresh">Generate now</button>
@@ -121,11 +151,14 @@
   <ul class="summary-notes" id="summaryNotes"></ul>
   <div class="summary-subtitle">Recommended practices</div>
   <ul class="summary-actions" id="summaryActions"></ul>
-</div>
+</section>
 
-<div class="section">
+<section class="panel section deploy span-12" aria-label="Release deployment">
   <div class="summary-head">
-    <h2>Release deployment</h2>
+    <div>
+      <span class="eyebrow">Release control</span>
+      <h2>Release deployment</h2>
+    </div>
     <div class="deploy-controls">
       <span class="deploy-status" id="deployStatus">Checking deploy status...</span>
       <button type="button" id="deployLatest" class="deploy-button">Deploy latest</button>
@@ -133,26 +166,32 @@
     </div>
   </div>
   <div class="section-note">Deploy latest installs only a newer release. Force redeploy re-downloads and reinstalls the current latest release. The service restarts during either action; no authentication is applied because this dashboard is for the trusted LAN only.</div>
-</div>
+</section>
 
-<div class="section">
-  <h2>System</h2>
+<section class="panel section span-7" aria-label="System status">
+  <div class="panel-head">
+    <h2>System</h2>
+    <span class="panel-hint">Sensor bus and host status</span>
+  </div>
   <div class="row"><span class="label">SPS30</span><span id="spsstatus" class="status">--</span></div>
   <div class="row"><span class="label">SCD4X</span><span id="scdstatus" class="status">--</span></div>
   <div class="row"><span class="label">SHT45</span><span id="shtstatus" class="status">--</span></div>
   <div class="row"><span class="label">SGP41</span><span id="sgpstatus" class="status">--</span></div>
-  <div class="row"><span class="label">Uptime</span><span id="up">--</span></div>
-  <div class="row"><span class="label">Total readings</span><span id="total">--</span></div>
-  <div class="row"><span class="label">Mode</span><span id="mode">--</span></div>
-  <div class="row"><span class="label">WiFi interface</span><span id="netif">--</span></div>
-  <div class="row"><span class="label">IP address</span><span id="ipaddr">--</span></div>
-  <div class="row"><span class="label">WiFi signal</span><span id="wifirssi">--</span></div>
-</div>
+  <div class="row"><span class="label">Uptime</span><span id="up" class="mono">--</span></div>
+  <div class="row"><span class="label">Total readings</span><span id="total" class="mono">--</span></div>
+  <div class="row"><span class="label">Mode</span><span id="mode" class="mono">--</span></div>
+  <div class="row"><span class="label">WiFi interface</span><span id="netif" class="mono">--</span></div>
+  <div class="row"><span class="label">IP address</span><span id="ipaddr" class="mono">--</span></div>
+  <div class="row"><span class="label">WiFi signal</span><span id="wifirssi" class="mono">--</span></div>
+</section>
 
-<div class="section">
-  <h2>API cadence</h2>
+<section class="panel section span-5" aria-label="API cadence">
+  <div class="panel-head">
+    <h2>API cadence</h2>
+    <span class="panel-hint">Browser-owned polling</span>
+  </div>
   <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary · POST /api/summaries/refresh → on-demand summary (10 min cooldown) · POST /api/deploy and POST /api/deploy/force → release deployment · /api/deploy/status → last deploy result</div>
-</div>
+</section>
 
 </div>
 <script src="js/store.js?v=2"></script>
