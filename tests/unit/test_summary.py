@@ -222,7 +222,7 @@ class TestTelegram:
             payload={"headline": "Headline", "summary": "Summary."},
         )
         text = telegram_text(summary)
-        assert "avg 40.0, min 30.0, max 50.0 ug/m3" in text
+        assert "PM2.5          40.0  30.0–50.0 µg/m³" in text
         assert "Notes:" in text
         assert "Recommended practices:" in text
         assert (
@@ -241,11 +241,25 @@ class TestTelegram:
             payload={"headline": "Air <b>good</b>", "summary": "Values & trends."},
         )
         html_text = telegram_html(summary)
-        assert "<b>Stingray hourly air-quality summary</b>" in html_text
+        assert "<b>Stingray · Air quality</b>" in html_text
         assert "<b>Values (last hour):</b>" in html_text
+        assert "<code>PM2.5          40.0  40.0–40.0 µg/m³</code>" in html_text
         assert "Air &lt;b&gt;good&lt;/b&gt;" in html_text
         assert "Values &amp; trends." in html_text
         assert all(line.count("<") == line.count(">") for line in html_text.splitlines())
+
+    def test_raw_signals_and_number_concentrations_are_hidden(self) -> None:
+        facts = _facts(voc_raw=31935.0, pm10_num_m3=292.0)
+        summary = make_summary(
+            facts,
+            derive_findings(facts, ThresholdsConfig()),
+            model="test-model",
+            payload=None,
+        )
+        for rendered in (telegram_text(summary), telegram_html(summary)):
+            assert "voc_raw" not in rendered
+            assert "31935" not in rendered
+            assert "pm10_num_m3" not in rendered
 
     def test_html_split_keeps_tags_balanced(self) -> None:
         facts = _facts(pm2_5_ug_m3=40.0)
@@ -261,6 +275,7 @@ class TestTelegram:
         for part in parts:
             assert part.count("<b>") == part.count("</b>")
             assert part.count("<i>") == part.count("</i>")
+            assert part.count("<code>") == part.count("</code>")
 
     def test_long_text_is_split_without_loss(self) -> None:
         text = "\n".join(f"line {i:03d} " + "x" * 20 for i in range(300))

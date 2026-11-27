@@ -119,9 +119,18 @@ on-demand worker uses the same capped connection.
 Telegram messages use HTML parse mode: bold section headers, `•` bullets, and
 one self-contained tag per line so long messages can be split at line
 boundaries without breaking markup. Dynamic text is HTML-escaped. Sections are
-ordered: values (avg/min/max), previous-hour comparison, notes, recommended
-practices, and a window/model footer. The stored `.txt` mirror keeps the same
-content in plain text.
+ordered: values, previous-hour comparison, notes, recommended practices, and a
+window/model footer. The stored `.txt` mirror keeps the same content in plain
+text.
+
+The values section is a **compact card**: only seven curated metrics (PM2.5,
+CO2, VOC index, NOx index, temperature, humidity, particle size) appear, each as
+one fixed-width `<code>` row showing average and min–max range with display
+units (µg/m³, ppm, °C, %, µm). Raw SGP41 signals, particle number concentrations
+and the remaining stored metrics are intentionally omitted — including them
+made the message long and visually skewed on a phone. Machine unit spellings
+(`ug/m3`, `degC`, `um`) are converted to display units everywhere in the
+message.
 
 The dashboard card shows the same values as compact metric tiles with a
 previous-hour change badge, plus separate Notes and Recommended practices

@@ -91,6 +91,7 @@ storage and in-memory health only.
 | Deterministic Python rules for thresholds/findings/actions; LLM only phrases `headline`/`summary` | Safety and reproducibility; model output is validated | Letting the model decide thresholds or recommend actions |
 | Numeric `previous_avg` + `change_vs_previous_pct` and `*_hour_change` findings | Comparisons are computed, not inferred from prose | Asking the model to compare hours |
 | Telegram HTML with bold headers, `•` bullets, escaped dynamic text, line-boundary splitting | Readable on a phone; long messages split into numbered parts, never truncated | Plain unformatted text or hard truncation |
+| Curated 7-metric compact card (`<code>` rows: avg + min–max) in Telegram | Raw SGP41 signals and particle number concentrations dominated the message and broke phone layout; curated rows stay aligned and short | Rendering every stored metric as `avg/min/max` bullets |
 | Values (avg/min/max) → notes → practices → footer | Stable reading order across every message | Model-chosen section order |
 | On-demand **Generate now** runs the whole pipeline including Telegram | What the user expects from the button | Dashboard-only refresh or Telegram-only send |
 | Server-side cooldown persisted in `/mnt/stingray/summaries/.refresh_state.json` | Cannot be bypassed by clearing browser state; survives restart | Client-only timer |

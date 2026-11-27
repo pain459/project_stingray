@@ -44,15 +44,19 @@ _FORBIDDEN_CLAIMS = (
     "covid",
 )
 
-#: Metric order, display labels, and decimal places for Telegram values.
+#: Only these curated metrics appear in Telegram. Raw SGP41 signals, particle
+#: number concentrations and the other stored metrics are deliberately omitted:
+#: dumping every fact made the message long, skewed by five-digit raw values
+#: and visually uneven when wrapped on a phone.
+#: (key, display label, decimal places, display unit)
 _TELEGRAM_METRICS = (
-    ("pm2_5_ug_m3", "PM2.5", 1),
-    ("co2_ppm", "CO2", 0),
-    ("voc_index", "VOC index", 0),
-    ("nox_index", "NOx index", 0),
-    ("temperature_c", "Temperature", 1),
-    ("relative_humidity_percent", "Humidity", 1),
-    ("tps_um", "TPS", 2),
+    ("pm2_5_ug_m3", "PM2.5", 1, "µg/m³"),
+    ("co2_ppm", "CO2", 0, "ppm"),
+    ("voc_index", "VOC index", 0, ""),
+    ("nox_index", "NOx index", 0, ""),
+    ("temperature_c", "Temperature", 1, "°C"),
+    ("relative_humidity_percent", "Humidity", 1, "%"),
+    ("tps_um", "Particle size", 2, "µm"),
 )
 
 
@@ -479,30 +483,42 @@ def make_summary(
     )
 
 
+def _pretty_units(text: str) -> str:
+    """Replace machine-readable unit spellings with display-friendly ones."""
+    text = text.replace("ug/m3", "µg/m³").replace("degC", "°C").replace("1/m3", "#/m³")
+    return re.sub(r"\bum\b", "µm", text)
+
+
 def _telegram_blocks(summary: Summary) -> dict[str, list[str]]:
-    """Shared section content for the plain-text and HTML Telegram renderers."""
-    values: list[str] = []
-    shown: set[str] = set()
-    for key, label, digits in _TELEGRAM_METRICS:
+    """Shared section content for the plain-text and HTML Telegram renderers.
+
+    Values are a small, fixed-width table: label, average and min–max range.
+    Only curated metrics are included, and each row is one line so a message
+    split can never leave half a table in either part.
+    """
+    values = [f"{'Metric':<13}{'Avg':>6}  Min–Max"]
+    for key, label, digits, unit in _TELEGRAM_METRICS:
         f = summary.facts.metrics.get(key)
         if f is None:
             continue
-        shown.add(key)
+        suffix = f" {unit}" if unit else ""
         values.append(
-            f"{label}: avg {_fmt(f.avg, digits)}, min {_fmt(f.minimum, digits)}, "
-            f"max {_fmt(f.maximum, digits)} {f.unit}"
-        )
-    for key, f in sorted(summary.facts.metrics.items()):
-        if key in shown:
-            continue
-        values.append(
-            f"{f.metric}: avg {_fmt(f.avg)}, min {_fmt(f.minimum)}, max {_fmt(f.maximum)} {f.unit}"
+            f"{label:<13}{_fmt(f.avg, digits):>6}  "
+            f"{_fmt(f.minimum, digits)}–{_fmt(f.maximum, digits)}{suffix}"
         )
     return {
         "values": values,
-        "comparison": [f.message for f in summary.findings if f.code.endswith("_hour_change")],
-        "notes": [f.message for f in summary.findings if not f.code.endswith("_hour_change")],
-        "actions": list(summary.actions),
+        "comparison": [
+            _pretty_units(f.message)
+            for f in summary.findings
+            if f.code.endswith("_hour_change")
+        ],
+        "notes": [
+            _pretty_units(f.message)
+            for f in summary.findings
+            if not f.code.endswith("_hour_change")
+        ],
+        "actions": [_pretty_units(action) for action in summary.actions],
     }
 
 
@@ -531,7 +547,13 @@ def telegram_text(summary: Summary) -> str:
     and recommended practices. Nothing is truncated here; the sender splits
     long messages into readable parts at line boundaries.
     """
-    lines = ["Stingray hourly air-quality summary", "", summary.headline, "", summary.text]
+    lines = [
+        "Stingray hourly air-quality summary",
+        "",
+        _pretty_units(summary.headline),
+        "",
+        _pretty_units(summary.text),
+    ]
     blocks = _telegram_blocks(summary)
     for heading, key in _TELEGRAM_SECTIONS:
         if blocks[key]:
@@ -542,25 +564,36 @@ def telegram_text(summary: Summary) -> str:
 
 
 def telegram_html(summary: Summary) -> str:
-    """Render the same summary with Telegram-safe HTML formatting.
+    """Render a compact, Telegram-safe HTML card from a validated Summary.
 
-    Every tag is opened and closed on one line, so splitting a long message at
-    line boundaries cannot leave an unclosed tag in either part. Dynamic text
-    is escaped; no model output is inserted as raw markup.
+    The values table uses inline ``<code>`` rows with fixed-width columns;
+    every tag opens and closes on one line, so splitting a long message at line
+    boundaries cannot leave an unclosed tag in either part. Dynamic text is
+    escaped; no model output is inserted as raw markup.
     """
     esc = html.escape
     lines = [
-        "<b>Stingray hourly air-quality summary</b>",
+        "<b>Stingray · Air quality</b>",
         "",
-        f"<b>{esc(summary.headline)}</b>",
+        f"<b>{esc(_pretty_units(summary.headline))}</b>",
         "",
-        esc(summary.text),
+        esc(_pretty_units(summary.text)),
     ]
     blocks = _telegram_blocks(summary)
     for heading, key in _TELEGRAM_SECTIONS:
         if not blocks[key]:
             continue
         lines.extend(["", f"<b>{esc(heading)}</b>"])
-        lines.extend(f"• {esc(item)}" for item in blocks[key])
-    lines.extend(["", f"<i>{esc(' · '.join(_telegram_footer(summary)))}</i>"])
+        if key == "values":
+            lines.extend(f"<code>{esc(row)}</code>" for row in blocks[key])
+        else:
+            lines.extend(f"• {esc(item)}" for item in blocks[key])
+    window, model, generated = _telegram_footer(summary)
+    lines.extend(
+        [
+            "",
+            f"<i>{esc(window)} · {esc(model)}</i>",
+            f"<i>{esc(generated)}</i>",
+        ]
+    )
     return "\n".join(lines)

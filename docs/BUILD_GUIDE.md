@@ -293,9 +293,10 @@ first, run the validator, then restart.
   aggregate → deterministic rules → local Ollama → save → dashboard →
   Telegram. It is rate-limited to one run per 10 minutes, enforced
   server-side in `/mnt/stingray/summaries/.refresh_state.json`.
-- Telegram messages use HTML formatting: bold section headers, bullet lines,
-  values (avg/min/max), previous-hour comparison, notes, practices, and a
-  footer. Long messages are split at line boundaries, never truncated.
+- Telegram messages use HTML formatting: bold section headers, a compact
+  seven-metric `<code>` card (average + min–max, display units), previous-hour
+  comparison, notes, practices, and a footer. Raw sensor signals are omitted.
+  Long messages are split at line boundaries, never truncated.
 - Hourly summaries use the same pipeline via systemd.
 
 Useful commands:
