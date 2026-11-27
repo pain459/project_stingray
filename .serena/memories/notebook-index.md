@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit c0e9bc6, release v0.2.4. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main commit 12d32a1, package v0.2.5 pending release tag; Pi still runs release v0.2.4. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -39,7 +39,7 @@
 # - Session - 2026-11-26 - Dashboard JS Scope Fix and Parquet Migration (note:ce2n4yobvoy3eyg4qrqm)
 # - Session - 2026-11-26 - SPS30 TPS and Network Info (note:ao3xhogu1msrl31uv5eo)
 # - Session - 2026-11-27 - Outdoor Context v0.2.4 Release and Forced Summary (note:q2py0ki7gxcqe9h5sf32)
-# - Checkpoint - 2026-11-27 - Browser-owned dashboard data pull (note:gr2zx4hsc60s7e0hlt0w) [implementation complete in working tree; v0.2.5 pending dry run; TFT untouched]
+# - Checkpoint - 2026-11-27 - Browser-owned dashboard data pull (note:gr2zx4hsc60s7e0hlt0w) [implemented/dry-run at 12d32a1; tag + Pi deploy pending confirmation; TFT untouched]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
 # - Session - 2026-11-27 - Pi CPU temperature telemetry (note:5qp0j5qpamsvp49myv8e)
