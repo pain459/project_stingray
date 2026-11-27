@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit 5e7c88e. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit 5495556. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -50,5 +50,7 @@
 # /etc/stingray/telegram.env (root:root 0600) and the hourly systemd unit.
 # On-demand dashboard button + HTML Telegram deployed at d3c1a7e; 10-minute server-side
 # cooldown in /mnt/stingray/summaries/.refresh_state.json. CPU fix at 5e7c88e (DuckDB 2
-# threads, UI polls busy up to 7 min) is pushed but not yet pulled on the Pi.
+# threads, UI polls busy up to 7 min) is pulled on the Pi; docs at 5495556.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
+# Reproducible build docs committed at 5495556: docs/BUILD_GUIDE.md, docs/hardware/{wiring,sensors,inventory}.md,
+# docs/DESIGN_AND_DECISIONS.md; README now links all guides.
