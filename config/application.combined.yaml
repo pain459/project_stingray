@@ -54,6 +54,11 @@ storage:
   retention_days: 30
 summary:
   enabled: true
+  external:
+    enabled: true
+    latitude: 17.38
+    longitude: 78.36
+    timeout_seconds: 5.0
   hours: 1
   model: qwen2.5:0.5b
   ollama_url: http://127.0.0.1:11434

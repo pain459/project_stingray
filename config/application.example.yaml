@@ -62,6 +62,12 @@ summary:
   model: qwen2.5:0.5b
   ollama_url: http://127.0.0.1:11434
   hours: 1
+  # Optional, keyless Open-Meteo weather/AQI context (CC BY 4.0; AQI from CAMS).
+  external:
+    enabled: false
+    latitude: 17.38
+    longitude: 78.36
+    timeout_seconds: 5.0
 
 logging:
   level: INFO

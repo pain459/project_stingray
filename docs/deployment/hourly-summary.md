@@ -13,11 +13,18 @@ threshold is crossed. Significant changes (25% or more in PM2.5, CO₂, VOC or
 NOx) add a deterministic `*_hour_change` finding; the comparison is included in
 the model prompt, the dashboard card, and the Telegram message.
 
+An optional, keyless Open-Meteo lookup adds nearby outdoor weather and modelled
+air-quality context. It is fetched once per run in the same `generate()` path
+used by the hourly timer and the **Generate now** button. The values appear in
+one short Telegram footer line, never as an eighth metric in the curated card.
+The provider data is a nearby model estimate, not a local sensor measurement.
+
 ## Files
 
 - `src/stingray/summary_job.py` — CLI entry point (`python -m stingray.summary_job`).
 - `src/stingray/summary.py` — rules, prompt, validation, Telegram rendering (plain text and HTML).
-- `src/stingray/summary_job.py` — CLI entry point and Telegram sender.
+- `src/stingray/external_context.py` — keyless Open-Meteo fetch, parsing, attribution, footer line.
+- `src/stingray/summary_job.py` — CLI entry point, shared `generate()`, and Telegram sender.
 - `src/stingray/summary_refresh.py` — on-demand trigger, persistent cooldown, background worker.
 - `src/stingray/summary_store.py` — JSON/text summary storage.
 - `deploy/stingray-hourly-summary.service` / `.timer` — hourly systemd units.
@@ -117,14 +124,58 @@ four Pi cores and starve Ollama, which caused 5-minute inference timeouts and
 deterministic fallbacks. The aggregation used by both the hourly job and the
 on-demand worker uses the same capped connection.
 
+## Optional outdoor context
+
+`summary.external` in `config/application.combined.yaml` enables the lookup for
+the deployed host:
+
+```yaml
+summary:
+  external:
+    enabled: true
+    latitude: 17.38
+    longitude: 78.36
+    timeout_seconds: 5.0
+```
+
+It is disabled by default. Coordinates can also be supplied with
+`STINGRAY_SUMMARY_LATITUDE` and `STINGRAY_SUMMARY_LONGITUDE`. Enabling the block
+without coordinates is a config error. Two keyless HTTPS requests are made with
+stdlib `urllib`: Open-Meteo Forecast for temperature, precipitation and wind,
+and Open-Meteo Air Quality for US AQI and PM2.5. No API key, extra dependency,
+or on-Pi build step is involved.
+
+Both requests are best-effort with a 5-second timeout. A timeout or malformed
+response is logged, the missing fields are omitted, and the indoor-only summary
+still completes. The JSON document records the snapshot under `outdoor`,
+including `available` and `error`, but never stores credentials or provider
+secrets.
+
+Deterministic rules remain authoritative: US AQI ≥ 100 adds an
+`outdoor_aqi_elevated` finding (critical at ≥ 150); outdoor PM2.5 at or above
+`max(pm2_5 threshold, 1.5 × indoor PM2.5)` adds `outdoor_pm25_higher`;
+precipitation ≥ 0.1 mm adds `outdoor_rain`. When outdoor air is polluted, the
+CO₂ ventilation action switches to recirculation until nearby air improves.
+The model may only repeat supplied numbers; its number allowlist includes the
+fetched values.
+
+**Attribution and limits:** data is © Open-Meteo under CC BY 4.0; air quality
+is modelled by CAMS and is credited as `Open-Meteo/CAMS` in every footer line.
+The service is keyless and intended for non-commercial use. Treat all outdoor
+values as a regional model estimate — not a local measurement, medical
+advice, or a replacement for the indoor sensors. Pi CPU temperature remains a
+separate `pi` / `cpu_temperature_c` metric and is never shown as outdoor data.
+
 ## Telegram and dashboard formatting
 
 Telegram messages use HTML parse mode: bold section headers, `•` bullets, and
 one self-contained tag per line so long messages can be split at line
 boundaries without breaking markup. Dynamic text is HTML-escaped. Sections are
-ordered: values, previous-hour comparison, notes, recommended practices, and a
-window/model footer. The stored `.txt` mirror keeps the same content in plain
-text.
+ordered: values, previous-hour comparison, notes, recommended practices, an
+optional one-line outdoor context footer, and the window/model footer. The
+outdoor line is a single italic line in HTML and a single plain-text line; it
+is never a new section or a metric row. The stored `.txt` mirror keeps the same
+content in plain text.
 
 The values section is a **compact card**: only seven curated metrics (PM2.5,
 CO2, VOC index, NOx index, temperature, humidity, particle size) appear, each as
@@ -135,9 +186,15 @@ made the message long and visually skewed on a phone. Machine unit spellings
 (`ug/m3`, `degC`, `um`) are converted to display units everywhere in the
 message.
 
+When outdoor context is available, one attributed line follows the practices:
+
+```text
+Nearby outdoor (model): 30.4°C · rain 0.0 mm · wind 7.6 km/h · US AQI 131 · PM2.5 40.0 µg/m³ · Open-Meteo/CAMS
+```
+
 The dashboard card shows the same values as compact metric tiles with a
 previous-hour change badge, plus separate Notes and Recommended practices
-lists.
+lists. Outdoor values are not added to those tiles.
 
 ## Deployment
 

@@ -108,6 +108,52 @@ class TestLoadConfig:
         cfg = load_config(p)
         assert cfg.alerts.telegram.bot_token == "secret-token"
 
+    def test_external_context_defaults_disabled(self, tmp_path: Path) -> None:
+        cfg = load_config(_write(tmp_path, "mode: mock\n"))
+        ext = cfg.summary.external
+        assert ext.enabled is False
+        assert ext.latitude is None
+        assert ext.longitude is None
+        assert ext.timeout_seconds == 5.0
+        assert ext.weather_url == "https://api.open-meteo.com/v1/forecast"
+        assert ext.air_quality_url == "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+    def test_external_context_loads_coordinates(self, tmp_path: Path) -> None:
+        cfg = load_config(
+            _write(
+                tmp_path,
+                "mode: mock\nsummary:\n  external:\n"
+                "    enabled: true\n    latitude: 17.38\n    longitude: 78.36\n",
+            )
+        )
+        assert cfg.summary.external.enabled is True
+        assert cfg.summary.external.latitude == 17.38
+        assert cfg.summary.external.longitude == 78.36
+
+    def test_external_context_requires_coordinates(self, tmp_path: Path) -> None:
+        p = _write(tmp_path, "mode: mock\nsummary:\n  external:\n    enabled: true\n")
+        with pytest.raises(ConfigError):
+            load_config(p)
+
+    def test_external_context_rejects_out_of_range(self, tmp_path: Path) -> None:
+        p = _write(
+            tmp_path,
+            "mode: mock\nsummary:\n  external:\n"
+            "    enabled: true\n    latitude: 100\n    longitude: 78.36\n",
+        )
+        with pytest.raises(ConfigError):
+            load_config(p)
+
+    def test_external_context_coordinates_from_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p = _write(tmp_path, "mode: mock\nsummary:\n  external:\n    enabled: true\n")
+        monkeypatch.setenv("STINGRAY_SUMMARY_LATITUDE", "17.38")
+        monkeypatch.setenv("STINGRAY_SUMMARY_LONGITUDE", "78.36")
+        cfg = load_config(p)
+        assert cfg.summary.external.latitude == 17.38
+        assert cfg.summary.external.longitude == 78.36
+
     def test_example_config_loads(self) -> None:
         example = (
             Path(__file__).resolve().parent.parent.parent / "config" / "application.example.yaml"

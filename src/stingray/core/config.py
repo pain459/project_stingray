@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from stingray.core.errors import ConfigError
 from stingray.core.models import SensorId
@@ -28,6 +28,8 @@ _ENV_OVERRIDES: dict[str, str] = {
     "display.timezone": "STINGRAY_DISPLAY_TZ",
     "summary.path": "STINGRAY_SUMMARY_PATH",
     "summary.model": "STINGRAY_SUMMARY_MODEL",
+    "summary.external.latitude": "STINGRAY_SUMMARY_LATITUDE",
+    "summary.external.longitude": "STINGRAY_SUMMARY_LONGITUDE",
     "sensors.pi.thermal_path": "STINGRAY_PI_THERMAL_PATH",
 }
 
@@ -74,6 +76,23 @@ class AlertsConfig(BaseModel):
     thresholds: ThresholdsConfig = Field(default_factory=ThresholdsConfig)
 
 
+class ExternalContextConfig(BaseModel):
+    """Best-effort outdoor weather/AQI context for the hourly summary."""
+
+    enabled: bool = False
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    weather_url: str = "https://api.open-meteo.com/v1/forecast"
+    air_quality_url: str = "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+    @model_validator(mode="after")
+    def _needs_coordinates(self) -> ExternalContextConfig:
+        if self.enabled and (self.latitude is None or self.longitude is None):
+            raise ValueError("external context needs latitude and longitude when enabled")
+        return self
+
+
 class SummaryConfig(BaseModel):
     """Hourly local-LLM summary generation."""
 
@@ -82,6 +101,7 @@ class SummaryConfig(BaseModel):
     model: str = "qwen2.5:0.5b"
     ollama_url: str = "http://127.0.0.1:11434"
     hours: float = Field(default=1.0, gt=0)
+    external: ExternalContextConfig = Field(default_factory=ExternalContextConfig)
     #: Minimum seconds between UI-triggered summary runs.
     refresh_cooldown_seconds: int = Field(default=600, ge=0)
 

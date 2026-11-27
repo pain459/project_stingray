@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from stingray.core.config import ThresholdsConfig
+from stingray.external_context import OutdoorContext, us_aqi_category
 
 #: Tokens that contain digits but are labels, not measurement values.
 _LABEL_TOKENS = (
@@ -165,6 +166,7 @@ class Summary:
     generated_at: datetime
     fallback_reason: str = ""
     model_metrics: dict[str, Any] = field(default_factory=dict)
+    outdoor: OutdoorContext = field(default_factory=OutdoorContext.empty)
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -173,6 +175,7 @@ class Summary:
             "actions": list(self.actions),
             "findings": [f.to_jsonable() for f in self.findings],
             "facts": self.facts.to_jsonable(),
+            "outdoor": self.outdoor.to_jsonable(),
             "model": self.model,
             "model_used": self.model_used,
             "generated_at": self.generated_at.isoformat(),
@@ -185,7 +188,11 @@ def _fmt(value: float, digits: int = 1) -> str:
     return f"{value:.{digits}f}"
 
 
-def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Finding]:
+def derive_findings(
+    facts: HourlyFacts,
+    thresholds: ThresholdsConfig,
+    outdoor: OutdoorContext | None = None,
+) -> list[Finding]:
     """Apply configured thresholds and trends. No LLM input is trusted here."""
     findings: list[Finding] = []
 
@@ -193,6 +200,14 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
         findings.append(Finding(code, severity, message, action))
 
     pm = facts.metrics.get("pm2_5_ug_m3")
+    outdoor_polluted = outdoor is not None and (
+        (outdoor.us_aqi is not None and outdoor.us_aqi >= 100)
+        or (
+            outdoor.pm2_5_ug_m3 is not None
+            and pm is not None
+            and outdoor.pm2_5_ug_m3 >= max(thresholds.pm2_5_ug_m3, pm.avg * 1.5)
+        )
+    )
     if pm is not None and pm.avg >= thresholds.pm2_5_ug_m3:
         severity = "critical" if pm.avg >= 2 * thresholds.pm2_5_ug_m3 else "warning"
         add(
@@ -210,7 +225,9 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
             "warning",
             "CO2 averaged "
             f"{_fmt(co2.avg, 0)} ppm, above the {_fmt(thresholds.co2_ppm, 0)} ppm guide.",
-            "Open a door or window for a few minutes, or increase fresh-air ventilation.",
+            "Ventilate briefly when nearby outdoor air improves; use recirculation meanwhile."
+            if outdoor_polluted
+            else "Open a door or window for a few minutes, or increase fresh-air ventilation.",
         )
 
     voc = facts.metrics.get("voc_index")
@@ -297,6 +314,45 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
             "Track the hour-to-hour change and adjust ventilation if it continues.",
         )
 
+    if outdoor is not None and outdoor.us_aqi is not None and outdoor.us_aqi >= 100:
+        severity = "critical" if outdoor.us_aqi >= 150 else "warning"
+        category = us_aqi_category(outdoor.us_aqi)
+        add(
+            "outdoor_aqi_elevated",
+            severity,
+            f"Nearby modelled outdoor US AQI is {_fmt(outdoor.us_aqi, 0)} ({category}).",
+            "Keep windows closed and use recirculation while outdoor AQI stays elevated."
+            if outdoor.us_aqi >= 150
+            else "Open windows only briefly while nearby outdoor AQI stays elevated.",
+        )
+
+    if (
+        outdoor is not None
+        and outdoor.pm2_5_ug_m3 is not None
+        and pm is not None
+        and outdoor.pm2_5_ug_m3 >= max(thresholds.pm2_5_ug_m3, pm.avg * 1.5)
+    ):
+        add(
+            "outdoor_pm25_higher",
+            "warning",
+            "Nearby modelled outdoor PM2.5 is "
+            f"{_fmt(outdoor.pm2_5_ug_m3)} ug/m3 versus {_fmt(pm.avg)} ug/m3 indoors.",
+            "Keep windows closed while outdoor particles exceed indoor levels.",
+        )
+
+    if (
+        outdoor is not None
+        and outdoor.precipitation_mm is not None
+        and outdoor.precipitation_mm >= 0.1
+    ):
+        add(
+            "outdoor_rain",
+            "info",
+            "Nearby modelled precipitation is "
+            f"{_fmt(outdoor.precipitation_mm)} mm in the latest interval.",
+            "Keep windows closed during rain and recheck indoor humidity afterwards.",
+        )
+
     stale = [
         name
         for name, f in sorted(facts.metrics.items())
@@ -320,7 +376,11 @@ def derive_findings(facts: HourlyFacts, thresholds: ThresholdsConfig) -> list[Fi
     return findings
 
 
-def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
+def build_prompt(
+    facts: HourlyFacts,
+    findings: list[Finding],
+    outdoor: OutdoorContext | None = None,
+) -> str:
     """Build a short, fact-only prompt that tiny models can follow reliably."""
     keys = (
         "pm2_5_ug_m3",
@@ -349,14 +409,19 @@ def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
     if comparisons:
         lines.append("Compared with previous hour:")
         lines.extend(comparisons)
+    if outdoor is not None and outdoor.has_data:
+        lines.append("Outdoor context (nearby model estimate):")
+        lines.extend(outdoor.fact_lines())
+        if outdoor.observed_at:
+            lines.append(f"- observed_at: {outdoor.observed_at}")
     lines.append("Findings:")
     for finding in findings:
         lines.append(f"- {finding.message}")
     lines.extend(
         [
             "Write a calm indoor air-quality update.",
-            "Use only these facts and findings. "
-            "Do not add numbers, medical claims, or outdoor claims.",
+            "Use only these facts and findings. Do not add numbers or medical claims. "
+            "Treat outdoor context as a nearby model estimate, not a local reading.",
             "Reply with exactly this JSON shape and nothing else:",
             '{"headline":"short headline","summary":"two short sentences"}',
         ]
@@ -364,7 +429,11 @@ def build_prompt(facts: HourlyFacts, findings: list[Finding]) -> str:
     return "\n".join(lines)
 
 
-def _allowed_number_tokens(facts: HourlyFacts, findings: list[Finding] | None = None) -> set[str]:
+def _allowed_number_tokens(
+    facts: HourlyFacts,
+    findings: list[Finding] | None = None,
+    outdoor: OutdoorContext | None = None,
+) -> set[str]:
     tokens: set[str] = {str(int(facts.window_end.timestamp())), "1"}
     for f in facts.metrics.values():
         values = [f.avg, f.minimum, f.maximum, f.first, f.last, f.change_pct or 0.0]
@@ -386,6 +455,19 @@ def _allowed_number_tokens(facts: HourlyFacts, findings: list[Finding] | None = 
                     continue
                 for digits in (0, 1, 2, 3):
                     tokens.add(_fmt(value, digits))
+    if outdoor is not None:
+        for value in (
+            outdoor.temperature_c,
+            outdoor.precipitation_mm,
+            outdoor.wind_kmh,
+            outdoor.us_aqi,
+            outdoor.pm2_5_ug_m3,
+        ):
+            if value is None:
+                continue
+            for digits in (0, 1, 2, 3):
+                tokens.add(_fmt(value, digits))
+            tokens.add(str(int(round(value))))
     return tokens
 
 
@@ -397,7 +479,10 @@ def _unapproved_numbers(text: str, allowed: set[str]) -> list[str]:
 
 
 def validate_model_payload(
-    payload: Any, facts: HourlyFacts, findings: list[Finding] | None = None
+    payload: Any,
+    facts: HourlyFacts,
+    findings: list[Finding] | None = None,
+    outdoor: OutdoorContext | None = None,
 ) -> tuple[str, str, str]:
     """Return (headline, summary, error). Error is empty when payload is valid."""
     if not isinstance(payload, dict):
@@ -419,7 +504,7 @@ def validate_model_payload(
         phrase in low for phrase in ("short headline", "two short sentences", "short status line")
     ):
         return "", "", "model response copied the example template"
-    allowed = _allowed_number_tokens(facts, findings)
+    allowed = _allowed_number_tokens(facts, findings, outdoor)
     bad = _unapproved_numbers(headline + " " + summary, allowed)
     if bad:
         return "", "", f"model response contained unapproved numbers: {', '.join(bad[:5])}"
@@ -461,11 +546,12 @@ def make_summary(
     payload: Any | None,
     model_error: str = "",
     model_metrics: dict[str, Any] | None = None,
+    outdoor: OutdoorContext | None = None,
 ) -> Summary:
     """Create the final Summary, falling back safely if needed."""
     headline, text, reason = "", "", model_error
     if payload is not None and not reason:
-        headline, text, reason = validate_model_payload(payload, facts, findings)
+        headline, text, reason = validate_model_payload(payload, facts, findings, outdoor)
     if not headline or not text:
         headline, text = render_fallback(facts, findings)
         reason = reason or "model output rejected"
@@ -480,6 +566,7 @@ def make_summary(
         generated_at=facts.generated_at.astimezone(UTC),
         fallback_reason=reason,
         model_metrics=dict(model_metrics or {}),
+        outdoor=outdoor if outdoor is not None else OutdoorContext.empty(),
     )
 
 
@@ -530,6 +617,11 @@ _TELEGRAM_SECTIONS = (
 )
 
 
+def _telegram_outdoor_line(summary: Summary) -> str:
+    """Return the optional modelled-outdoor context line, if available."""
+    return summary.outdoor.footer_line() if summary.outdoor.has_data else ""
+
+
 def _telegram_footer(summary: Summary) -> list[str]:
     local = summary.generated_at.astimezone()
     return [
@@ -559,6 +651,9 @@ def telegram_text(summary: Summary) -> str:
         if blocks[key]:
             lines.extend(["", heading])
             lines.extend(f"- {item}" for item in blocks[key])
+    outdoor_line = _telegram_outdoor_line(summary)
+    if outdoor_line:
+        lines.extend(["", outdoor_line])
     lines.extend(["", *_telegram_footer(summary)])
     return "\n".join(lines)
 
@@ -589,9 +684,12 @@ def telegram_html(summary: Summary) -> str:
         else:
             lines.extend(f"• {esc(item)}" for item in blocks[key])
     window, model, generated = _telegram_footer(summary)
+    lines.append("")
+    outdoor_line = _telegram_outdoor_line(summary)
+    if outdoor_line:
+        lines.append(f"<i>{esc(outdoor_line)}</i>")
     lines.extend(
         [
-            "",
             f"<i>{esc(window)} · {esc(model)}</i>",
             f"<i>{esc(generated)}</i>",
         ]

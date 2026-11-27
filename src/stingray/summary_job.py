@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from stingray.core.config import AppConfig, load_config
+from stingray.external_context import OutdoorContext, fetch_outdoor_context
 from stingray.storage.parquet_store import connect_read_limited
 from stingray.summary import (
     HourlyFacts,
@@ -179,10 +180,17 @@ def generate(
     config: AppConfig,
     *,
     model: str,
+    outdoor: OutdoorContext | None = None,
 ) -> Any:
     """Run the rules and the model, returning a validated Summary."""
-    findings = derive_findings(facts, config.alerts.thresholds)
-    prompt = build_prompt(facts, findings)
+    if outdoor is None:
+        outdoor = (
+            fetch_outdoor_context(config.summary.external)
+            if config.summary.external.enabled
+            else OutdoorContext.empty()
+        )
+    findings = derive_findings(facts, config.alerts.thresholds, outdoor)
+    prompt = build_prompt(facts, findings, outdoor)
     error = ""
     payload: Any = None
     metrics: dict[str, Any] = {}
@@ -202,6 +210,7 @@ def generate(
         payload=payload,
         model_error=error,
         model_metrics=metrics,
+        outdoor=outdoor,
     )
 
 

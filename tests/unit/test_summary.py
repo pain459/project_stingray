@@ -6,19 +6,29 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from stingray.core.config import ThresholdsConfig
+import pytest
+
+from stingray.core.config import (
+    AppConfig,
+    ExternalContextConfig,
+    SummaryConfig,
+    ThresholdsConfig,
+)
 from stingray.core.models import Measurement, MetricId, SensorId, utc_now
+from stingray.external_context import OutdoorContext, fetch_outdoor_context
 from stingray.storage.parquet_store import ParquetWriter
 from stingray.summary import (
     HourlyFacts,
     MetricFacts,
+    Summary,
+    build_prompt,
     derive_findings,
     make_summary,
     telegram_html,
     telegram_text,
     validate_model_payload,
 )
-from stingray.summary_job import aggregate_facts, split_telegram_text
+from stingray.summary_job import aggregate_facts, generate, split_telegram_text
 from stingray.summary_store import SummaryStore
 
 
@@ -284,6 +294,253 @@ class TestTelegram:
         assert all(len(part) <= 500 for part in parts)
         assert sum(part.count("line ") for part in parts) == 300
         assert "line 299" in parts[-1]
+
+
+class TestOutdoorRules:
+    def test_elevated_aqi_adds_finding(self) -> None:
+        context = OutdoorContext(us_aqi=131.0)
+        findings = derive_findings(_facts(), ThresholdsConfig(), context)
+        aqi = next(f for f in findings if f.code == "outdoor_aqi_elevated")
+        assert aqi.severity == "warning"
+        assert "131" in aqi.message
+        assert "Unhealthy for sensitive groups" in aqi.message
+        assert "briefly" in aqi.action
+
+    def test_very_high_aqi_is_critical(self) -> None:
+        findings = derive_findings(
+            _facts(), ThresholdsConfig(), OutdoorContext(us_aqi=180.0)
+        )
+        aqi = next(f for f in findings if f.code == "outdoor_aqi_elevated")
+        assert aqi.severity == "critical"
+        assert "recirculation" in aqi.action
+
+    def test_outdoor_pm25_higher_uses_threshold_and_indoor_ratio(self) -> None:
+        context = OutdoorContext(pm2_5_ug_m3=12.0)
+        findings = derive_findings(
+            _facts(pm2_5_ug_m3=8.0),
+            ThresholdsConfig(pm2_5_ug_m3=10.0),
+            context,
+        )
+        pm = next(f for f in findings if f.code == "outdoor_pm25_higher")
+        assert "12.0 ug/m3 versus 8.0 ug/m3 indoors" in pm.message
+
+    def test_outdoor_pm25_below_ratio_is_not_flagged(self) -> None:
+        findings = derive_findings(
+            _facts(pm2_5_ug_m3=8.0),
+            ThresholdsConfig(pm2_5_ug_m3=10.0),
+            OutdoorContext(pm2_5_ug_m3=11.0),
+        )
+        assert "outdoor_pm25_higher" not in {f.code for f in findings}
+
+    def test_rain_adds_info_finding(self) -> None:
+        findings = derive_findings(
+            _facts(), ThresholdsConfig(), OutdoorContext(precipitation_mm=0.2)
+        )
+        rain = next(f for f in findings if f.code == "outdoor_rain")
+        assert rain.severity == "info"
+        assert "0.2 mm" in rain.message
+
+    def test_co2_action_switches_when_outdoor_air_is_polluted(self) -> None:
+        facts = _facts(co2_ppm=1200.0)
+        polluted = derive_findings(facts, ThresholdsConfig(), OutdoorContext(us_aqi=131.0))
+        co2 = next(f for f in polluted if f.code == "co2_elevated")
+        assert "recirculation" in co2.action
+        indoor_only = derive_findings(facts, ThresholdsConfig())
+        co2 = next(f for f in indoor_only if f.code == "co2_elevated")
+        assert "window" in co2.action
+
+    def test_empty_context_keeps_indoor_rules(self) -> None:
+        findings = derive_findings(_facts(), ThresholdsConfig(), OutdoorContext.empty())
+        assert [f.code for f in findings] == ["all_clear"]
+
+
+class TestOutdoorFetch:
+    def test_disabled_context_returns_empty(self) -> None:
+        context = fetch_outdoor_context(ExternalContextConfig())
+        assert not context.has_data
+        assert context.error == ""
+        assert context.footer_line() == ""
+
+    def test_parses_both_feeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_fetch(url: str, params: dict[str, object], timeout: float) -> dict[str, object]:
+            assert timeout == 5.0
+            assert params["latitude"] == 17.38
+            assert params["longitude"] == 78.36
+            if "air-quality" in url:
+                return {
+                    "current": {
+                        "time": "2026-11-27T22:00",
+                        "us_aqi": 131,
+                        "pm2_5": 40.0,
+                    }
+                }
+            return {
+                "current": {
+                    "time": "2026-11-27T22:00",
+                    "temperature_2m": 30.4,
+                    "precipitation": 0.0,
+                    "wind_speed_10m": 7.6,
+                }
+            }
+
+        monkeypatch.setattr("stingray.external_context._fetch_json", fake_fetch)
+        context = fetch_outdoor_context(
+            ExternalContextConfig(enabled=True, latitude=17.38, longitude=78.36)
+        )
+        assert context.error == ""
+        assert context.observed_at == "2026-11-27T22:00"
+        assert context.us_aqi == 131.0
+        assert context.pm2_5_ug_m3 == 40.0
+        assert context.source == "Open-Meteo/CAMS"
+        assert context.footer_line() == (
+            "Nearby outdoor (model): 30.4°C · rain 0.0 mm · wind 7.6 km/h · "
+            "US AQI 131 · PM2.5 40.0 µg/m³ · Open-Meteo/CAMS"
+        )
+
+    def test_partial_failure_is_fail_soft(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_fetch(url: str, params: dict[str, object], timeout: float) -> dict[str, object]:
+            if "air-quality" in url:
+                return {"current": {"us_aqi": 42}}
+            raise OSError("offline")
+
+        monkeypatch.setattr("stingray.external_context._fetch_json", fake_fetch)
+        context = fetch_outdoor_context(
+            ExternalContextConfig(enabled=True, latitude=17.38, longitude=78.36)
+        )
+        assert context.has_data
+        assert context.us_aqi == 42.0
+        assert context.error == "weather:OSError"
+        assert "US AQI 42" in context.footer_line()
+
+    def test_non_numeric_payload_is_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_fetch(url: str, params: dict[str, object], timeout: float) -> dict[str, object]:
+            return {"current": {"us_aqi": "unknown", "temperature_2m": None}}
+
+        monkeypatch.setattr("stingray.external_context._fetch_json", fake_fetch)
+        context = fetch_outdoor_context(
+            ExternalContextConfig(enabled=True, latitude=17.38, longitude=78.36)
+        )
+        assert not context.has_data
+        assert context.footer_line() == ""
+
+    def test_generate_fetches_context_once_for_both_paths(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        context = OutdoorContext(us_aqi=131.0, temperature_c=30.4)
+        calls: list[object] = []
+
+        def fake_fetch(config: ExternalContextConfig) -> OutdoorContext:
+            calls.append(config)
+            return context
+
+        def fake_ollama(url: str, model: str, prompt: str) -> tuple[str, dict[str, object]]:
+            assert "outdoor_us_aqi: 131" in prompt
+            return '{"headline":"Outdoor air is poor","summary":"Nearby US AQI is 131."}', {}
+
+        monkeypatch.setattr("stingray.summary_job.fetch_outdoor_context", fake_fetch)
+        monkeypatch.setattr("stingray.summary_job.call_ollama", fake_ollama)
+        config = AppConfig(
+            summary=SummaryConfig(
+                external=ExternalContextConfig(
+                    enabled=True, latitude=17.38, longitude=78.36
+                )
+            )
+        )
+        summary = generate(_facts(), config, model="test-model")
+        assert isinstance(summary, Summary)
+        assert len(calls) == 1
+        assert summary.outdoor == context
+        assert "outdoor_aqi_elevated" in {f.code for f in summary.findings}
+
+
+class TestOutdoorPromptAndValidation:
+    def test_prompt_labels_outdoor_as_nearby_estimate(self) -> None:
+        context = OutdoorContext(
+            temperature_c=30.4,
+            precipitation_mm=0.0,
+            wind_kmh=7.6,
+            us_aqi=131.0,
+            pm2_5_ug_m3=40.0,
+            observed_at="2026-11-27T22:00",
+        )
+        prompt = build_prompt(_facts(), [], context)
+        assert "Outdoor context (nearby model estimate):" in prompt
+        assert "outdoor_us_aqi: 131 (Unhealthy for sensitive groups)" in prompt
+        assert "- observed_at: 2026-11-27T22:00" in prompt
+        assert "not a local reading" in prompt
+
+    def test_prompt_without_context_has_no_outdoor_section(self) -> None:
+        assert "Outdoor context" not in build_prompt(_facts(), [])
+
+    def test_accepts_supplied_outdoor_number(self) -> None:
+        context = OutdoorContext(us_aqi=131.0)
+        _, text, error = validate_model_payload(
+            {"headline": "Outdoor air is poor", "summary": "Nearby US AQI is 131."},
+            _facts(),
+            [],
+            context,
+        )
+        assert not error
+        assert "131" in text
+
+    def test_rejects_invented_outdoor_number(self) -> None:
+        _, _, error = validate_model_payload(
+            {"headline": "Outdoor air is poor", "summary": "Nearby US AQI is 132."},
+            _facts(),
+            [],
+            OutdoorContext(us_aqi=131.0),
+        )
+        assert "unapproved numbers" in error
+
+
+class TestOutdoorTelegram:
+    @staticmethod
+    def _context() -> OutdoorContext:
+        return OutdoorContext(
+            temperature_c=30.4,
+            precipitation_mm=0.0,
+            wind_kmh=7.6,
+            us_aqi=131.0,
+            pm2_5_ug_m3=40.0,
+        )
+
+    @staticmethod
+    def _summary(context: OutdoorContext | None = None) -> object:
+        facts = _facts(pm2_5_ug_m3=40.0)
+        return make_summary(
+            facts,
+            derive_findings(facts, ThresholdsConfig(), context),
+            model="test-model",
+            payload={"headline": "Headline", "summary": "Summary."},
+            outdoor=context,
+        )
+
+    def test_outdoor_line_is_one_footer_line(self) -> None:
+        summary = self._summary(self._context())
+        assert isinstance(summary, Summary)
+        footer = (
+            "Nearby outdoor (model): 30.4°C · rain 0.0 mm · wind 7.6 km/h · "
+            "US AQI 131 · PM2.5 40.0 µg/m³ · Open-Meteo/CAMS"
+        )
+        text = telegram_text(summary)
+        assert text.count(footer) == 1
+        assert text.index("Recommended practices:") < text.index(footer) < text.index("Window:")
+        html_text = telegram_html(summary)
+        assert f"<i>{footer}</i>" in html_text
+
+    def test_no_outdoor_line_without_context(self) -> None:
+        summary = self._summary()
+        assert isinstance(summary, Summary)
+        assert "Nearby outdoor" not in telegram_text(summary)
+        assert "Nearby outdoor" not in telegram_html(summary)
+
+    def test_outdoor_context_is_persisted(self) -> None:
+        summary = self._summary(self._context())
+        assert isinstance(summary, Summary)
+        payload = summary.to_jsonable()
+        assert payload["outdoor"]["available"] is True
+        assert payload["outdoor"]["us_aqi"] == 131.0
+        assert payload["outdoor"]["source"] == "Open-Meteo/CAMS"
 
 
 class TestStore:

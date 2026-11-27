@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit 523a50e, release v0.2.2. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit d6c37a4, release v0.2.3. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -38,6 +38,8 @@
 # - Session - 2026-11-26 - SHT4x and SGP41 Gas Sensor Bring-up (note:3qjpgmv87ldsmi977nbe)
 # - Session - 2026-11-26 - Dashboard JS Scope Fix and Parquet Migration (note:ce2n4yobvoy3eyg4qrqm)
 # - Session - 2026-11-26 - SPS30 TPS and Network Info (note:ao3xhogu1msrl31uv5eo)
+# - Checkpoint - 2026-11-27 - Weather and AQI context for summaries (note:q2py0ki7gxcqe9h5sf32) [awaiting user inputs]
+# - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
 # - Session - 2026-11-27 - Pi CPU temperature telemetry (note:5qp0j5qpamsvp49myv8e)
 # - Session - 2026-11-26 - Data Provenance Sanity and Mock Cleanup (note:v5iotxf6z0oyhq502tns)
@@ -78,3 +80,4 @@
 #
 # RELEASE v0.2.2 (523a50e) 2026-11-27: Pi CPU telemetry in TFT header, dashboard live card and history selector. Dry run 45985892080 passed before publishing; release run 45986331709; Pi force-deployed 0.2.2; /api/live pi=67.7 degC ready, history samples present. Session: note:5qp0j5qpamsvp49myv8e.
 # RELEASE POLL SCHEDULE CHANGED 2026-11-27: deploy timer OnCalendar=*:15,45 (repo deploy/stingray-deploy.timer). Chosen so release restarts never overlap the :00 hourly summary/Telegram job; maximum lag stays 30 min. Pi-side unit install needs interactive sudo (ravik has no passwordless sudo for unit edits). # codemap note:1k3u6dipbo4smx73jzz9
+# RELEASE v0.2.3 (d6c37a4) 2026-11-27: fixes displayed version drift; dry run 45990079883 and release 45990572782 passed; tag/assets verified; Pi auto-deployed at 17:15 IST with no force; dist-info and TFT footer both show v0.2.3; CPU metric still live. Session: note:nngavfdn0isrckzs11uz.

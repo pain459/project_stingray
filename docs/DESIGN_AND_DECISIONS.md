@@ -56,7 +56,7 @@ ILI9341 ─ SPI0 ─┴─> TFT dashboard                            └─> hou
 | Storage | `src/stingray/storage/parquet_store.py` | batched Parquet writes, bounded DuckDB reads, retention |
 | API/UI | `src/stingray/api/server.py`, `static/` | stdlib HTTP server, JSON API, no-build-step frontend |
 | Display | `src/stingray/display/*` | ILI9341 TFT dashboard sampled from latest readings |
-| Summary | `src/stingray/summary.py`, `summary_job.py`, `summary_refresh.py` | deterministic rules + local LLM + persistence + Telegram |
+| Summary | `src/stingray/summary.py`, `summary_job.py`, `summary_refresh.py`, `external_context.py` | deterministic rules + local LLM + optional keyless outdoor context + persistence + Telegram |
 
 The contract between layers is the frozen pydantic `Measurement`. Drivers do
 not know about storage; storage does not know about drivers; the API reads
@@ -95,6 +95,9 @@ storage and in-memory health only.
 | Telegram HTML with bold headers, `•` bullets, escaped dynamic text, line-boundary splitting | Readable on a phone; long messages split into numbered parts, never truncated | Plain unformatted text or hard truncation |
 | Curated 7-metric compact card (`<code>` rows: avg + min–max) in Telegram | Raw SGP41 signals and particle number concentrations dominated the message and broke phone layout; curated rows stay aligned and short | Rendering every stored metric as `avg/min/max` bullets |
 | Values (avg/min/max) → notes → practices → footer | Stable reading order across every message | Model-chosen section order |
+| Optional keyless Open-Meteo context fetched once in `summary_job.generate()` | Both hourly and on-demand paths get identical best-effort data with no API key, new dependency, or Pi build step | A keyed weather service, a new local sensor, or separate fetches in each caller |
+| Outdoor context as one attributed Telegram footer line, never a metric row or section | Preserves the curated 7-card layout and makes the modelled estimate explicit | An eighth metric tile or a new Telegram section |
+| Deterministic outdoor findings and CO₂ recirculation fallback | Thresholds and actions stay reproducible; the LLM may only repeat supplied numbers | Letting the model interpret outdoor values or decide ventilation |
 | On-demand **Generate now** runs the whole pipeline including Telegram | What the user expects from the button | Dashboard-only refresh or Telegram-only send |
 | Server-side cooldown persisted in `/mnt/stingray/summaries/.refresh_state.json` | Cannot be bypassed by clearing browser state; survives restart | Client-only timer |
 | 600 s cooldown (`SummaryConfig.refresh_cooldown_seconds`) | Prevents CPU/API abuse while remaining useful | No limit or a much longer interval |
@@ -116,17 +119,25 @@ storage and in-memory health only.
 
 1. **Aggregate.** Query the last hour of Parquet data into deterministic facts:
    averages, min/max, sample counts, previous-hour average and percent change.
-2. **Rules.** Python applies thresholds (PM2.5 35 µg/m³, CO₂ 1000 ppm, VOC 100,
-   NOx 150, RH 30–65 %, temperature 30 °C) and emits findings and advisory
-   practices. No model is involved in these decisions.
-3. **Phrase.** A local Ollama model receives a tight prompt and is asked only
-   for `headline` and `summary`. Output is validated; on timeout or invalid
-   content the system falls back to deterministic text (`model_used: false`).
-4. **Persist.** The complete summary is saved under
-   `/mnt/stingray/summaries/year=YYYY/month=MM/day=DD/` so it is stable and
-   reviewable.
-5. **Publish.** The latest summary appears on the dashboard and is sent to
-   Telegram as formatted HTML.
+2. **Enrich (optional).** If `summary.external.enabled`, fetch nearby outdoor
+   temperature, precipitation, wind, US AQI and PM2.5 once from keyless
+   Open-Meteo endpoints. Failures are logged and omitted; the indoor summary
+   is unaffected.
+3. **Rules.** Python applies thresholds (PM2.5 35 µg/m³, CO₂ 1000 ppm, VOC 100,
+   NOx 150, RH 30–65 %, temperature 30 °C) plus outdoor rules (US AQI ≥ 100,
+   outdoor PM2.5 ≥ `max(pm2_5 threshold, 1.5 × indoor PM2.5)`, precipitation
+   ≥ 0.1 mm) and emits findings and advisory practices. No model is involved
+   in these decisions.
+4. **Phrase.** A local Ollama model receives a tight prompt and is asked only
+   for `headline` and `summary`. Output is validated against the number
+   allowlist; on timeout or invalid content the system falls back to
+   deterministic text (`model_used: false`).
+5. **Persist.** The complete summary, including the `outdoor` snapshot when
+   available, is saved under `/mnt/stingray/summaries/year=YYYY/month=MM/day=DD/`
+   so it is stable and reviewable.
+6. **Publish.** The latest summary appears on the dashboard and is sent to
+   Telegram as formatted HTML. Outdoor context is one attributed footer line
+   after the practices, credited `Open-Meteo/CAMS`.
 
 Hourly runs come from `stingray-hourly-summary.timer` with `Nice=15`. The
 on-demand path enters the same code via `summary_refresh.py`, guarded by the
@@ -145,6 +156,7 @@ server-side cooldown.
 | Combined acquisition with real data only | done |
 | API and LAN dashboard, ILI9341 TFT dashboard | done and deployed |
 | Hourly local-LLM summary + Telegram | done and deployed |
+| Optional keyless Open-Meteo outdoor context | implemented; fail-soft and attributed |
 | Beautified Telegram/dashboard output + rate-limited on-demand refresh | done and deployed |
 | DuckDB thread cap + refresh polling fix | implemented and pushed, awaiting Pi pull |
 | ESP32 reference API capture / alert parity (Phase 08) | open / blocked on reference captures |
@@ -172,6 +184,9 @@ time-bounded (latest 2 h, count 24 h) and why bulk work happens on
 7. Never run `scripts/validate_gas_sensors.py` while `stingray.service` is
    running.
 8. Health/medical claims are out of scope; all output is air-quality guidance.
+9. Open-Meteo context is keyless, non-commercial, stdlib-only and attributed
+   `Open-Meteo/CAMS`; outdoor values are a nearby model estimate, never a local
+   measurement, an eighth curated metric, or Pi CPU temperature.
 
 ---
 
