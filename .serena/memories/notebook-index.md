@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main/tag commit ccd8f2a, v0.2.10 published and deployed early at 16:02 UTC via stingray-deploy poll (Pi 0.2.10 / ccd8f2a..., service active, dashboard 200, neon logo HTTP 200 with matching hash); local browser clock + double-buffered chart live. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main tip 6fa5f5d / functional tag v0.2.10 at ccd8f2a; blog-ready notes persisted (deep manual, config matrix, gotchas, runbook, focused code maps, blog source pack). Pi runs 0.2.10 / ccd8f2a... with local browser clock, double-buffered chart, flat neon logo, and logo HTTP 200; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -7,6 +7,7 @@
 # Architecture / reference
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
+# - Ref - project_stingray - Dashboard Modernization Blog Source Pack (note:lb88ced5ed92ah5quqcv) — blog-ready timeline, decisions, failure story, verification, outline
 # - Runbook - project_stingray - Debug Deployed Package on stingray (note:yzww5cqdo4jh5kdaibqk) — symptom-based Pi debugging; repo doc docs/deployment/operator-runbook.md
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
@@ -27,6 +28,7 @@
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
 # - Code Map - project_stingray - DuckDB Parquet Storage and Retention (note:l3jhb964heucyg3whecj)
 # - Code Map - project_stingray - Web Dashboard API and UI (note:k0l1zypuiwas4vkbz9hd)
+# - Code Map - project_stingray - Dashboard Clock, Refresh, and Logo Assets (note:17l70kcdjkmidl83w75v) — local clock, no-op DOM writes, offscreen chart, /assets/ route
 # - Code Map - project_stingray - Webpage Deploy Control Flow (note:s72y4yu86y4ckicly8z1)
 # - Code Map - project_stingray - Sensor Metrics Inventory and Utilization (note:44ovcy8ota8bvdlxxf88)
 # - Code Map - project_stingray - Pi CPU Temperature Telemetry (note:1k3u6dipbo4smx73jzz9)
@@ -44,7 +46,7 @@
 # - Session - 2026-11-27 - Browser-Owned Dashboard v0.2.5 Release (note:frm7su5vp9052x6720hm) [release, auto-deploy, query/load and summary verification complete; TFT untouched]
 # - Session - 2026-11-27 - Dashboard UI Modernization and v0.2.7 Release (note:9uks6aa1hg2tsleff52y) [early deploy before timer; human visual review pending]
 # - Session - 2026-11-27 - Release Control Refresh and v0.2.8 (note:t5t9gduqw9y023i2q1tl) [read-only GitHub update check; deployed early]
-# - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored]
+# - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored; blog notes persisted]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
 # - Session - 2026-11-27 - Pi CPU temperature telemetry (note:5qp0j5qpamsvp49myv8e)
@@ -66,6 +68,7 @@
 # files shared. sudo -n expires with the interactive timestamp — a narrow NOPASSWD
 # rule for /usr/bin/systemctl restart stingray.service is now permanent, NOT temporary.
 # (10) HISTORY_URL already contains ?mode=history: append &metric=..., never ?metric=..., or the server returns 400 unknown mode (gotcha note:qj5im2u5bx1zns1jpvzc; fixed at 43aae91, released and force deployed as v0.2.6 / ab9e53a).
+# (11) A new static asset URL prefix must be routed in ApiHandler/do_GET; adding the file and MIME type is not enough. v0.2.9 logo 404 fixed in v0.2.10 by routing /assets/ to _serve_static.
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
