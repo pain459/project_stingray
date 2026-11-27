@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit b41e36d. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit a07e1af, release v0.2.1. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -18,11 +18,13 @@
 # Release / deployment (current)
 # - Decision - project_stingray - GitHub Release Build and Pi Auto-Deploy (note:r12f3agbargyl1wsbai8)
 # - Runbook - project_stingray - Build and Evaluate GitHub Release (note:he6pvq13x9jccdjc7ck8)
+# - Decision - project_stingray - Web Deploy via One-Shot Systemd Unit (note:nnrirfjk19yxk2gfda7s)
 #
 # Code maps
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
 # - Code Map - project_stingray - DuckDB Parquet Storage and Retention (note:l3jhb964heucyg3whecj)
 # - Code Map - project_stingray - Web Dashboard API and UI (note:k0l1zypuiwas4vkbz9hd)
+# - Code Map - project_stingray - Webpage Deploy Control Flow (note:s72y4yu86y4ckicly8z1)
 # - Code Map - project_stingray - SHT4x SGP41 Gas Acquisition (note:zur67oe676tzxo5015yf)
 # - Code Map - project_stingray - SHT45 Driver (note:zr1sm26kwprguqo69w6a)
 # - Code Map - project_stingray - SPS30 Driver (note:gqbf2r8u9enjtznd3tke)
@@ -46,6 +48,7 @@
 # read shared state via self.state (self.network does not exist on the handler).
 # (6) DuckDB defaults to 32 threads; use connect_read_limited() (threads=2) for all
 # read queries or dashboard polling starves Ollama on the 4-core Pi.
+# (8) Web deploy must run in a separate oneshot systemd unit: a child of stingray.service is killed by the service cgroup on restart (setsid does not help). Fixed unit names + narrow sudoers only.
 # (7) Pi repo is monusr-owned; ravik is in group monusr and setgid dirs keep new
 # files shared. sudo -n expires with the interactive timestamp — a narrow NOPASSWD
 # rule for /usr/bin/systemctl restart stingray.service is now permanent, NOT temporary.
@@ -65,3 +68,5 @@
 # Telegram compact curated card at 9ddf2ce (7 metrics, code rows, raw signals hidden).
 # CUTOVER COMPLETE 2026-11-27: Pi runs v0.2.0 from /opt/stingray/releases/0.2.0 via /opt/stingray/current; git checkout removed; deploy timer active at OnCalendar=*:0/30 (user asked for 30min, not 10min); all four sensors healthy; dashboard summary.js?v=10. Old scripts/deploy-pi.sh deleted from GitHub. Bootstrap needs interactive sudo; see Gotcha note m3tllw7y4q3p9po7imzm.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
+
+# WEB DEPLOY COMPLETE 2026-11-27: v0.2.1 from a07e1af published after rerun of transient build failure (45974111254) and deployed to Pi. Both @poll and @force buttons verified end-to-end (202 → unit success → status file → API). Pi hardware mode, 0 failed reads; timer OnCalendar=*:0/30. Session: note:em68bsg3bi7u0jgpbl1b. Code map: note:s72y4yu86y4ckicly8z1. One-time Pi installer completed by user.
