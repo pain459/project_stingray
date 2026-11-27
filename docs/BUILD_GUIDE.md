@@ -41,11 +41,12 @@ Two machines are used during development:
 
 | Host | Role |
 |---|---|
-| `pathfinder` | x86 development box — edit, lint, test, build |
+| `pathfinder` | x86 development box — edit, lint, test, build and tag releases |
 | `stingray` | Raspberry Pi 4 — the only machine that runs the service and sensors |
 
-Workflow: develop on `pathfinder`, push to GitHub, pull on `stingray`, restart
-the service, verify on the Pi. Never develop directly on the Pi.
+Workflow: develop and push from `pathfinder`; tag `v*` after evaluating a build
+on GitHub; GitHub publishes the arm64 release and the Pi polls and deploys it.
+Never develop, build or git-pull on the Pi.
 
 ---
 

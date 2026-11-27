@@ -17,9 +17,10 @@ summaries. The non-negotiable constraints are:
 - **Real hardware only in production.** `mode: hardware` on the Pi; every
   served/stored value comes from a physical sensor. Mock mode is for tests and
   development on `pathfinder` only.
-- **Two-machine workflow.** Develop and test on `pathfinder`, push to GitHub,
-  pull on `stingray`, restart and verify on the Pi. The service never runs on
-  the dev box.
+- **Two-machine workflow.** Develop, test and push from `pathfinder`; this repo
+  is the only development checkout and the place releases are tagged. GitHub
+  builds the arm64 artifact, and the Pi polls and deploys it with no git repo of
+  its own. The service never runs on the dev box.
 - **Deterministic safety.** Python rules own thresholds, findings and
   recommended actions. The LLM may only phrase `headline` and `summary`;
   unapproved numbers or claims are rejected.
@@ -185,5 +186,6 @@ time-bounded (latest 2 h, count 24 h) and why bulk work happens on
 - **Physical wiring labels.** The DFR0918 terminal positions and the exact
   display board revision were not recorded on the original harness; see the
   open items in [`hardware/wiring.md`](hardware/wiring.md).
-- **Deployment lag.** After development on `pathfinder`, always pull on the Pi
-  and confirm the new commit and script cache version before judging a fix.
+- **Deployment lag.** After pushing a release from `pathfinder`, confirm the
+  deployed version with `/home/ravik/bin/stingray-deploy status` and the served
+  script cache version before judging a fix; the Pi polls every 30 minutes.
