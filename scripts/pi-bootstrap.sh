@@ -37,11 +37,14 @@ if [[ ! -e "$SYSTEMD/stingray.service.d/telegram.conf" ]]; then
     "$SYSTEMD/stingray.service.d/telegram.conf"
 fi
 
-echo "==> Reloading systemd and enabling timers"
+echo "==> Reloading systemd, enabling and starting timers"
 systemctl daemon-reload
 systemctl enable stingray.service
 systemctl enable stingray-hourly-summary.timer
 systemctl enable stingray-deploy.timer
+# `enable` only wires the symlinks; the timer must also be started to poll now.
+systemctl start stingray-hourly-summary.timer
+systemctl start stingray-deploy.timer
 
 echo
 echo "Bootstrap complete. The running service is untouched."
