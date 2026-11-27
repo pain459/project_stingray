@@ -25,6 +25,7 @@
 # - Code Map - project_stingray - DuckDB Parquet Storage and Retention (note:l3jhb964heucyg3whecj)
 # - Code Map - project_stingray - Web Dashboard API and UI (note:k0l1zypuiwas4vkbz9hd)
 # - Code Map - project_stingray - Webpage Deploy Control Flow (note:s72y4yu86y4ckicly8z1)
+# - Code Map - project_stingray - Sensor Metrics Inventory and Utilization (note:44ovcy8ota8bvdlxxf88)
 # - Code Map - project_stingray - SHT4x SGP41 Gas Acquisition (note:zur67oe676tzxo5015yf)
 # - Code Map - project_stingray - SHT45 Driver (note:zr1sm26kwprguqo69w6a)
 # - Code Map - project_stingray - SPS30 Driver (note:gqbf2r8u9enjtznd3tke)
