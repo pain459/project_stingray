@@ -107,6 +107,8 @@ storage and in-memory health only.
 | Immutable release directories + `current` symlink, last 3 kept | Atomic cutover and automatic rollback without touching `/mnt/stingray` data | In-place updates that cannot be undone |
 | Evaluate builds with a dry-run dispatch before any tag or Pi change | Build time and artifact contents are verified on GitHub first, as requested | Publishing a release or touching the Pi before evaluation |
 | Pi polls GitHub Releases every 30 minutes (`OnCalendar=*:0/30`) | 10-minute polling was unnecessarily aggressive for a manual release flow; 30 minutes keeps auto-deploy prompt without repeated API calls | 10-minute interval; polling on every main push |
+| Webpage "Deploy latest" and "Force redeploy" trigger a one-shot systemd unit, not a child process of the API | A deploy restarts `stingray.service`, and systemd's cgroup kill mode would terminate any API-spawned worker mid-deploy | Running the CLI directly from the request handler or a background thread |
+| Two fixed unit instances with a narrow `monusr` sudoers rule and no dashboard auth | The CLI is privileged; fixed names prevent arbitrary unit starts, and the dashboard is for a trusted LAN | Token auth or an open sudo rule |
 
 ---
 

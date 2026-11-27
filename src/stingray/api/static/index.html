@@ -117,6 +117,18 @@
 </div>
 
 <div class="section">
+  <div class="summary-head">
+    <h2>Release deployment</h2>
+    <div class="deploy-controls">
+      <span class="deploy-status" id="deployStatus">Checking deploy status...</span>
+      <button type="button" id="deployLatest" class="deploy-button">Deploy latest</button>
+      <button type="button" id="deployForce" class="deploy-button force">Force redeploy</button>
+    </div>
+  </div>
+  <div class="section-note">Deploy latest installs only a newer release. Force redeploy re-downloads and reinstalls the current latest release. The service restarts during either action; no authentication is applied because this dashboard is for the trusted LAN only.</div>
+</div>
+
+<div class="section">
   <h2>System</h2>
   <div class="row"><span class="label">SPS30</span><span id="spsstatus" class="status">--</span></div>
   <div class="row"><span class="label">SCD4X</span><span id="scdstatus" class="status">--</span></div>
@@ -132,7 +144,7 @@
 
 <div class="section">
   <h2>API cadence</h2>
-  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary · POST /api/summaries/refresh → on-demand summary (10 min cooldown)</div>
+  <div class="api-note">/api/live → every 5 s · /api/health → every 30 s · /api/history?metric=pm2_5_ug_m3&hours=24 → time-range history · /api/summaries/latest → hourly summary · POST /api/summaries/refresh → on-demand summary (10 min cooldown) · POST /api/deploy and POST /api/deploy/force → release deployment · /api/deploy/status → last deploy result</div>
 </div>
 
 </div>
@@ -140,6 +152,7 @@
 <script src="js/history.js?v=10"></script>
 <script src="js/live.js?v=10"></script>
 <script src="js/summary.js?v=10"></script>
+<script src="js/deploy.js?v=1"></script>
 <script src="js/app.js?v=10"></script>
 </body>
 </html>

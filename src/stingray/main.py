@@ -23,6 +23,7 @@ from stingray.core.models import SensorId
 from stingray.core.network import get_network_info
 from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_specs_from_config
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
+from stingray.deploy_control import DeployControl
 from stingray.display import DisplayService
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
 from stingray.sensors.scd4x import SCD4X
@@ -183,12 +184,13 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
         return 1
     log.info("scheduler started with sensors: %s", [d.sensor_id.value for d in drivers])
 
-    # One network snapshot for both consumers: the API reports the IP and the
-    # TFT footer uses the WiFi signal level. No SSID or credentials are stored.
+    # One network snapshot for both consumers: the API and the TFT footer both
+    # report the host IP. No SSID or credentials are stored.
     network = get_network_info()
 
     # Start the dashboard API server (unauthenticated, internal use).
     refresher = SummaryRefresher(config) if config.summary.enabled else None
+    deploy = DeployControl(config.deploy) if config.deploy.enabled else None
     api_state = ApiState(
         scheduler,
         storage_path,
@@ -196,6 +198,7 @@ def run(config: AppConfig, *, duration_seconds: float | None = None) -> int:
         network=network,
         summaries_path=config.summary.path,
         refresher=refresher,
+        deploy=deploy,
     )
     api_server = start_api_server(config.api.host, config.api.port, api_state)
 

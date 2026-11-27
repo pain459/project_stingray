@@ -1,0 +1,16 @@
+[Unit]
+Description=Stingray web-triggered release deploy (%i)
+After=network-online.target
+Wants=network-online.target
+
+# Runs in its own cgroup: a deploy restarts stingray.service, so it must not
+# be a child of that service or systemd would kill it mid-deploy.
+# Only @poll and @force instances are permitted by the sudoers rule.
+[Service]
+Type=oneshot
+User=ravik
+Group=monusr
+UMask=0002
+WorkingDirectory=/home/ravik
+Environment=STINGRAY_DEPLOY_STATUS=/opt/stingray/web-deploy-status.json
+ExecStart=/home/ravik/bin/stingray-deploy %i

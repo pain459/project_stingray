@@ -13,6 +13,8 @@ alerts:
 api:
   host: 0.0.0.0
   port: 8081
+deploy:
+  enabled: true
 display:
   enabled: true
   refresh_seconds: 2

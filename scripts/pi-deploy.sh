@@ -13,8 +13,52 @@ API="https://api.github.com/repos/pain459/project_stingray/releases/latest"
 HEALTH="http://127.0.0.1:8081/api/health"
 KEEP=3
 
+# The web dashboard sets STINGRAY_DEPLOY_STATUS through its one-shot unit so it
+# can poll the final result while stingray.service is restarting.
+STATUS_FILE="${STINGRAY_DEPLOY_STATUS:-}"
+ACTION="status"
+STARTED_AT=""
+STARTED_EPOCH=""
+RESULT_MESSAGE="Deployment completed"
+LOCK_SKIPPED=0
+
 log() { printf '[stingray-deploy] %s\n' "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
+
+write_status() {
+  [[ -n "$STATUS_FILE" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local state="$1" rc="$2"
+  if jq -nc \
+    --arg state "$state" --arg action "$ACTION" --arg message "$RESULT_MESSAGE" \
+    --arg version "$(current_version)" --arg started_at "$STARTED_AT" \
+    --arg finished_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson started_epoch "${STARTED_EPOCH:-0}" --argjson exit_code "$rc" \
+    '{state:$state,action:$action,message:$message,version:$version,
+      started_at:$started_at,finished_at:$finished_at,
+      started_epoch:$started_epoch,exit_code:$exit_code}' \
+    > "$STATUS_FILE.tmp"; then
+    mv -f "$STATUS_FILE.tmp" "$STATUS_FILE" || true
+  else
+    rm -f "$STATUS_FILE.tmp"
+  fi
+  return 0
+}
+
+finalize() {
+  local rc=$?
+  trap - EXIT
+  if [[ "$LOCK_SKIPPED" == "1" ]]; then
+    RESULT_MESSAGE="Another deployment is already running"
+    write_status error 0
+  elif [[ "$rc" -eq 0 ]]; then
+    write_status success 0
+  else
+    RESULT_MESSAGE="Deployment failed; see journalctl -u stingray-deploy.service"
+    write_status error "$rc"
+  fi
+  exit "$rc"
+}
 
 current_version() {
   [[ -e "$CURRENT/VERSION" ]] && cat "$CURRENT/VERSION" || echo "none"
@@ -88,16 +132,21 @@ do_install() {
   log "deployed $version successfully"
 }
 
-do_poll() {
+# do_poll_forced 0 = ordinary poll (skip when already current)
+# do_poll_forced 1 = force reinstall of the latest release at the same version
+do_poll_forced() {
+  local forced="$1"
   local json tag version archive_url sha_url
   json="$(curl -fsSL --retry 2 "$API")" || die "GitHub API request failed"
   tag="$(printf '%s' "$json" | jq -r '.tag_name // empty')"
   [[ -n "$tag" ]] || die "no tag_name in GitHub API response"
   version="${tag#v}"
-  if [[ "$version" == "$(current_version)" ]]; then
+  if [[ "$forced" == "0" && "$version" == "$(current_version)" ]]; then
     log "already on $version"
+    RESULT_MESSAGE="Already on $version (no change)"
     return 0
   fi
+  [[ "$forced" == "1" ]] && log "force reinstalling $version"
   archive_url="$(printf '%s' "$json" | jq -r --arg v "$version" \
     '.assets[] | select(.name == "stingray-\($v)-arm64.tar.gz") | .browser_download_url')"
   sha_url="$(printf '%s' "$json" | jq -r --arg v "$version" \
@@ -145,16 +194,22 @@ do_verify() {
 main() {
   local action="${1:-status}"
   mkdir -p "$RELEASES" "$DOWNLOADS"
+  ACTION="$action"
+  STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  STARTED_EPOCH="$(date +%s)"
+  trap finalize EXIT
+
   exec 9>"$LOCK"
-  flock -n 9 || { log "another deploy is running"; exit 0; }
+  flock -n 9 || { log "another deploy is running"; LOCK_SKIPPED=1; exit 0; }
 
   case "$action" in
-    poll) do_poll ;;
+    poll) do_poll_forced 0 ;;
+    force) do_poll_forced 1 ;;
     install) do_install "${2:?version}" "${3:?archive url}" "${4:?sha url}" ;;
     rollback) do_rollback ;;
     status) do_status ;;
     verify) do_verify "${2:?archive path}" ;;
-    *) die "usage: stingray-deploy {poll|install|rollback|status|verify <archive>}" ;;
+    *) die "usage: stingray-deploy {poll|force|install|rollback|status|verify <archive>}" ;;
   esac
 }
 

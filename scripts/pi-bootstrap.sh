@@ -27,7 +27,7 @@ install -o ravik -g ravik -m 0755 "$SRC_DIR/scripts/pi-deploy.sh" "$DEPLOY_HOME/
 
 echo "==> Installing systemd units"
 for unit in stingray.service stingray-hourly-summary.service stingray-hourly-summary.timer \
-  stingray-deploy.service stingray-deploy.timer; do
+  stingray-deploy.service stingray-deploy.timer stingray-web-deploy@.service; do
   install -o root -g root -m 0644 "$SRC_DIR/deploy/$unit" "$SYSTEMD/$unit"
 done
 # Keep any existing Telegram drop-in; do not overwrite credentials or env wiring.

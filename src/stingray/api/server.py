@@ -11,6 +11,9 @@ Endpoints:
     GET /api/health  -> process + scheduler health
     GET /api/summaries -> recent hourly LLM summaries
     POST /api/summaries/refresh -> start an on-demand summary (rate-limited)
+    GET /api/deploy/status -> last web-triggered deploy result
+    POST /api/deploy       -> deploy the latest GitHub release
+    POST /api/deploy/force -> reinstall the latest release even at the same version
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from urllib.parse import parse_qs, urlparse
 from stingray.core.models import SensorId
 from stingray.core.network import NetworkInfo, as_dict
 from stingray.core.scheduler import SensorScheduler
+from stingray.deploy_control import DeployControl
 from stingray.storage.parquet_store import ParquetQuery
 from stingray.summary_refresh import SummaryRefresher
 from stingray.summary_store import SummaryStore
@@ -66,6 +70,7 @@ class ApiState:
         network: NetworkInfo | None = None,
         summaries_path: str | Path | None = None,
         refresher: SummaryRefresher | None = None,
+        deploy: DeployControl | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.db_path = db_path
@@ -74,6 +79,7 @@ class ApiState:
         self.network = network
         self.summaries_path = Path(summaries_path) if summaries_path is not None else None
         self.refresher = refresher
+        self.deploy = deploy
         self._lock = threading.Lock()
 
     def uptime_seconds(self) -> float:
@@ -129,6 +135,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._serve_summaries(query)
         elif path == "/api/summaries/latest":
             self._serve_latest_summary()
+        elif path == "/api/deploy/status":
+            self._serve_deploy_status()
         elif path.startswith("/css/") or path.startswith("/js/"):
             self._serve_static(path)
         else:
@@ -139,6 +147,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         if path == "/api/summaries/refresh":
             self._serve_refresh()
+        elif path == "/api/deploy":
+            self._serve_deploy(force=False)
+        elif path == "/api/deploy/force":
+            self._serve_deploy(force=True)
         else:
             _json_response(self, 404, {"error": "not found"})
 
@@ -280,6 +292,28 @@ class ApiHandler(BaseHTTPRequestHandler):
             _json_response(self, 503, {"error": "summary refresh is not configured"})
             return
         status, payload = refresher.trigger()
+        _json_response(self, status, payload)
+
+    def _serve_deploy_status(self) -> None:
+        """Last web-triggered deploy result (or disabled state)."""
+        control = self.state.deploy
+        status = control.status() if control is not None else {"configured": False, "state": "idle"}
+        _json_response(self, 200, status)
+
+    def _serve_deploy(self, *, force: bool) -> None:
+        """Trigger the Pi's deploy unit with a fixed, non-user-supplied argv."""
+        control = self.state.deploy
+        if control is None:
+            _json_response(
+                self,
+                503,
+                {
+                    "error": "unavailable",
+                    "message": "Web deployment is not configured on this host.",
+                },
+            )
+            return
+        status, payload = control.trigger(force=force)
         _json_response(self, status, payload)
 
     def _serve_health(self) -> None:

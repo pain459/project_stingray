@@ -132,6 +132,50 @@ narrow rule in `/etc/sudoers.d/stingray-deploy`.
 Deployment is automatic via `stingray-deploy.timer`, so normally none of these
 are needed.
 
+## Webpage deploy controls
+
+The dashboard has **Deploy latest** and **Force redeploy** buttons. Both call
+the same Pi deploy CLI as the timer, through a dedicated one-shot systemd unit:
+
+- `POST /api/deploy` → `stingray-web-deploy@poll.service` — installs only when a
+  newer tag exists.
+- `POST /api/deploy/force` → `stingray-web-deploy@force.service` — re-downloads
+  and reinstalls the latest release even at the same version.
+- `GET /api/deploy/status` → the last result from
+  `/opt/stingray/web-deploy-status.json`.
+
+The unit is required because a deploy restarts `stingray.service`; a process
+spawned by the web API would be killed with the service. The API passes only
+two fixed unit names, and the sudoers rule permits only those exact commands.
+The dashboard is unauthenticated by design, so these endpoints are for the
+trusted LAN only.
+
+Both POST requests return `202` immediately. The page then polls the status
+endpoint while the service restarts and shows the final version and result.
+A deploy that fails its health check still rolls back as described above.
+
+### One-time setup on an existing Pi
+
+`scripts/pi-bootstrap.sh` installs the unit for fresh builds. For the Pi that
+was bootstrapped before this feature, run once with interactive sudo from a
+temporary checkout on the Pi:
+
+```sh
+sudo SRC_DIR=/path/to/checkout bash scripts/pi-enable-web-deploy.sh
+```
+
+It installs the updated `/home/ravik/bin/stingray-deploy`, the
+`stingray-web-deploy@.service` template, and a narrow sudoers drop-in that
+allows `monusr` to start only `@poll` and `@force`. It does not restart the
+service. Verify from `pathfinder`:
+
+```sh
+curl -fsS http://192.168.68.53:8081/api/deploy/status
+```
+
+The buttons appear after a release with `deploy.enabled: true` is running;
+before that, the endpoints return `503` and the UI says deployment is disabled.
+
 ## Why a prebuilt venv
 
 The Pi is `aarch64` with Python 3.13.5 and has native wheels (`spidev`, `RPi.GPIO`,

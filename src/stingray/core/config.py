@@ -83,6 +83,15 @@ class SummaryConfig(BaseModel):
     refresh_cooldown_seconds: int = Field(default=600, ge=0)
 
 
+class DeployConfig(BaseModel):
+    """Web-triggered release deployment (Pi deployments only)."""
+
+    enabled: bool = False
+    status_path: str = "/opt/stingray/web-deploy-status.json"
+    #: Timeout for starting the one-shot systemd unit, not for the deploy itself.
+    timeout_seconds: int = Field(default=15, ge=1, le=120)
+
+
 class DisplayConfig(BaseModel):
     enabled: bool = True
     spi_device: str = "/dev/spidev0.0"
@@ -115,6 +124,7 @@ class AppConfig(BaseModel):
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     summary: SummaryConfig = Field(default_factory=SummaryConfig)
+    deploy: DeployConfig = Field(default_factory=DeployConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     @field_validator("mode")
