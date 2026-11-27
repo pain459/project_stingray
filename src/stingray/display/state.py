@@ -43,5 +43,6 @@ class DisplayState:
     nox_level: DisplayLevel = DisplayLevel.NEUTRAL
     
     # Footer
-    wifi_rssi: Optional[int] = None
+    ip_address: str | None = None
+    last_updated: str = "--:--:--"
     measurement_age: Optional[int] = None

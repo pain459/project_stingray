@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from stingray.core.config import AppConfig, SensorConfig
-from stingray.core.errors import ConfigError
 from stingray.core.models import SensorId
 from stingray.main import build_drivers, build_hardware_drivers, build_mock_drivers
 from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
@@ -67,25 +64,30 @@ class TestHardwareDrivers:
         assert drivers[0].bus_number == 3
         assert drivers[0].address == 0x45
 
-    def test_enabled_sensor_without_driver_raises(self) -> None:
+    def test_all_enabled_sensors_build_hardware_drivers(self) -> None:
         config = _config(
-            "hardware", sht45=True, scd4x=True, sgp41=True, sps30=False
+            "hardware", sht45=True, scd4x=True, sgp41=True, sps30=True
         )
 
-        with pytest.raises(ConfigError, match="sgp41"):
-            build_hardware_drivers(config)
+        drivers = build_hardware_drivers(config)
 
-    def test_all_unsupported_sensors_are_named(self) -> None:
-        config = _config(
-            "hardware", sht45=False, scd4x=True, sgp41=True, sps30=True
-        )
+        assert [d.sensor_id for d in drivers] == [
+            SensorId.SHT45,
+            SensorId.SPS30,
+            SensorId.SCD4X,
+            SensorId.SGP41,
+        ]
 
-        with pytest.raises(ConfigError) as excinfo:
-            build_hardware_drivers(config)
+    def test_gas_and_particle_sensors_are_hardware_ready(self) -> None:
+        config = _config("hardware", sht45=False, scd4x=True, sgp41=True, sps30=True)
 
-        message = str(excinfo.value)
-        assert "sgp41" in message
-        assert "sht45" in message  # listed as hardware-ready
+        drivers = build_hardware_drivers(config)
+
+        assert [d.sensor_id for d in drivers] == [
+            SensorId.SPS30,
+            SensorId.SCD4X,
+            SensorId.SGP41,
+        ]
 
     def test_no_enabled_sensors_yields_no_drivers(self) -> None:
         config = _config("hardware", sht45=False, scd4x=False, sgp41=False, sps30=False)

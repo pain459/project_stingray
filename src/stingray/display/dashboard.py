@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from typing import Optional
 
 from PIL import Image, ImageDraw
@@ -29,6 +31,14 @@ from .font_truetype import (
 log = logging.getLogger("stingray.display.dashboard")
 
 
+def _installed_version() -> str:
+    """Return the installed package version, or ``dev`` outside an install."""
+    try:
+        return package_version("stingray")
+    except PackageNotFoundError:
+        return "dev"
+
+
 @dataclass
 class SensorSnapshot:
     """Immutable snapshot of sensor data for display."""
@@ -45,15 +55,21 @@ class SensorSnapshot:
     tps: Optional[float] = None
     sensor_online: bool = True
     sensor_warming: bool = False
-    wifi_rssi: Optional[int] = None
+    ip_address: str | None = None
 
 
 class DisplayDashboard:
     """V1.8 air quality dashboard for the ILI9341 display."""
 
-    def __init__(self, driver: ILI9341Driver, hostname: str = "stingray"):
+    def __init__(
+        self,
+        driver: ILI9341Driver,
+        hostname: str = "stingray",
+        app_version: str | None = None,
+    ):
         self.driver = driver
         self.hostname = hostname
+        self.app_version = app_version if app_version is not None else _installed_version()
         self._last_state: Optional[DisplayState] = None
         self._last_render_time: float = 0.0
         self._refresh_interval: float = 1.0  # 1 second
@@ -82,6 +98,10 @@ class DisplayDashboard:
         if key not in self._fonts:
             self._fonts[key] = get_font(size, bold)
         return self._fonts[key]
+
+    def _content_state(self, state: DisplayState) -> DisplayState:
+        """State without footer-only facts, so footer updates stay local."""
+        return replace(state, ip_address=None, last_updated="", measurement_age=None)
 
     def _get_tile_color(self, level: DisplayLevel) -> int:
         """Get the RGB565 color for a severity level."""
@@ -241,28 +261,21 @@ class DisplayDashboard:
 
             font = self._get_font(10, bold=True)
 
-            # Hostname (left)
-            draw.text((4, (height - 10) // 2), self.hostname, font=font, fill=rgb565_to_rgb(COLORS["white"]))
+            # Hostname and installed version (left)
+            draw.text(
+                (4, (height - 10) // 2),
+                f"{self.hostname} v{self.app_version}",
+                font=font,
+                fill=rgb565_to_rgb(COLORS["white"]),
+            )
 
-            # WiFi RSSI (center)
-            if state.wifi_rssi is not None:
-                rssi_text = f"RSSI:{state.wifi_rssi}"
-                if state.wifi_rssi >= -67:
-                    rssi_color = COLORS["green"]
-                elif state.wifi_rssi >= -75:
-                    rssi_color = COLORS["warning"]
-                else:
-                    rssi_color = COLORS["bad"]
-            else:
-                rssi_text = "WiFi OFF"
-                rssi_color = COLORS["bad"]
+            # Host IP (center) replaces the noisy RSSI readout.
+            ip_text = state.ip_address if state.ip_address else "NO IP"
+            ip_color = COLORS["white"] if state.ip_address else COLORS["bad"]
+            draw_centered_text(draw, ip_text, (114, 0, 100, height), font, rgb565_to_rgb(ip_color))
 
-            rssi_rect = (114, 0, 100, height)
-            draw_centered_text(draw, rssi_text, rssi_rect, font, rgb565_to_rgb(rssi_color))
-
-            # Measurement age (right)
+            # Last sample time (right); colour still flags stale data.
             if state.measurement_age is not None:
-                age_text = f"Updated {state.measurement_age}s"
                 if state.measurement_age <= 10:
                     age_color = COLORS["green"]
                 elif state.measurement_age <= 30:
@@ -270,11 +283,12 @@ class DisplayDashboard:
                 else:
                     age_color = COLORS["bad"]
             else:
-                age_text = "Updated --"
                 age_color = COLORS["warning"]
 
             age_rect = (232, 0, width - 232, height)
-            draw_centered_text(draw, age_text, age_rect, font, rgb565_to_rgb(age_color))
+            draw_centered_text(
+                draw, f"Upd {state.last_updated}", age_rect, font, rgb565_to_rgb(age_color)
+            )
 
         return render_region_to_rgb565(x, y, width, height, draw_func, COLORS["navy"])
 
@@ -282,10 +296,12 @@ class DisplayDashboard:
         """Build a display state from a sensor snapshot."""
         now = datetime.now()
 
-        # Calculate measurement age
+        # Calculate measurement age and the last sample's clock time.
         measurement_age = None
+        last_updated = "--:--:--"
         if snapshot.timestamp > 0:
             measurement_age = int(time.time() - snapshot.timestamp)
+            last_updated = datetime.fromtimestamp(snapshot.timestamp).strftime("%H:%M:%S")
 
         # Classify severities
         pm25_level = classify_severity("pm25", snapshot.pm25, self._pm25_threshold)
@@ -337,7 +353,8 @@ class DisplayDashboard:
             co2_level=co2_level,
             voc_level=voc_level,
             nox_level=nox_level,
-            wifi_rssi=snapshot.wifi_rssi,
+            ip_address=snapshot.ip_address,
+            last_updated=last_updated,
             measurement_age=measurement_age,
         )
 
@@ -345,9 +362,15 @@ class DisplayDashboard:
         """Render the dashboard with the given sensor snapshot."""
         state = self._build_state(snapshot)
 
-        # Check if anything changed
-        if self._last_state is not None and self._last_state == state:
-            return  # No changes, skip rendering
+        # Avoid a full-panel redraw when only footer facts changed.
+        if self._last_state is not None:
+            if self._last_state == state:
+                return
+            if self._content_state(self._last_state) == self._content_state(state):
+                self._send_region("footer", self._render_footer(state))
+                self._last_state = state
+                self._last_render_time = time.time()
+                return
 
         # Render all regions and send to display
         self._send_region("header", self._render_header(state))

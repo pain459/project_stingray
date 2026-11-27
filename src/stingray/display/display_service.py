@@ -199,5 +199,5 @@ class DisplayService:
             tps=tps,
             sensor_online=any_online,
             sensor_warming=scd4x_warming,
-            wifi_rssi=self._network.wifi_rssi if self._network is not None else None,
+            ip_address=self._network.ip_address if self._network is not None else None,
         )
