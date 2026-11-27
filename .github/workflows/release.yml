@@ -43,7 +43,7 @@ jobs:
           mkdir -p dist
           docker run --rm --platform linux/arm64 \
             -v "$PWD":/src:ro -v "$PWD/dist":/dist \
-            python:3.13 bash /src/scripts/build-release.sh \
+            python:3.13.5 bash /src/scripts/build-release.sh \
             "${{ steps.meta.outputs.version }}" "${{ steps.meta.outputs.sha }}"
 
       - name: Verify checksum and archive listing
