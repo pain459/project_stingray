@@ -6,6 +6,7 @@
 # Architecture / reference
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
+# - Runbook - project_stingray - Debug Deployed Package on stingray (note:yzww5cqdo4jh5kdaibqk) — symptom-based Pi debugging; repo doc docs/deployment/operator-runbook.md
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
 # - Runbook - project_stingray - Deploy from pathfinder to Pi (note:pfq82urnpiyjk2w8gzjb) [superseded by release model]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
