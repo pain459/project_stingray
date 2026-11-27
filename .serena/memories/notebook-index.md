@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit 64af31a. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit b41e36d. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -12,6 +12,7 @@
 # - Gotcha - project_stingray - Sensirion I2C Protocol Traps (note:fcgj8n7po6773f0a6vgp)
 # - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
+# - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 #
 # Release / deployment (current)
@@ -62,6 +63,5 @@
 # Reproducible build docs committed at 5495556: docs/BUILD_GUIDE.md, docs/hardware/{wiring,sensors,inventory}.md,
 # docs/DESIGN_AND_DECISIONS.md; README now links all guides.
 # Telegram compact curated card at 9ddf2ce (7 metrics, code rows, raw signals hidden).
-# One-command Pi deploy at cbf6f30 via scripts/deploy-pi.sh; monusr permissions fixed.
-# GitHub Release v0.2.0 published at 64af31a: arm64 venv tarball + SHA256, ~2m GitHub build, public unauthenticated download. Pi cutover pending user go-ahead.
+# CUTOVER COMPLETE 2026-11-27: Pi runs v0.2.0 from /opt/stingray/releases/0.2.0 via /opt/stingray/current; git checkout removed; deploy timer active at OnCalendar=*:0/30 (user asked for 30min, not 10min); all four sensors healthy; dashboard summary.js?v=10. Old scripts/deploy-pi.sh deleted from GitHub. Bootstrap needs interactive sudo; see Gotcha note m3tllw7y4q3p9po7imzm.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
