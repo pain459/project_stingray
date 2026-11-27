@@ -1,0 +1,68 @@
+name: Release
+
+# Tag push -> one arm64 release asset published to GitHub Releases.
+# Manual dispatch -> the same build, uploaded as an Actions artifact only, so
+# build time and contents can be evaluated before any Release (or Pi) changes.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and verify without publishing a GitHub Release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm64:
+    name: Build arm64 release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable arm64 emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Resolve version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="dry-run-${GITHUB_SHA::7}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Build in arm64 container
+        run: |
+          mkdir -p dist
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD":/src:ro -v "$PWD/dist":/dist \
+            python:3.13 bash /src/scripts/build-release.sh \
+            "${{ steps.meta.outputs.version }}" "${{ steps.meta.outputs.sha }}"
+
+      - name: Verify checksum and archive listing
+        run: |
+          cd dist
+          sha256sum -c ./*.sha256
+          tar -tzf ./*.tar.gz | head -25
+
+      - name: Upload evaluation artifact
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stingray-dry-run
+          path: dist/*
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: ${{ github.event_name == 'push' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

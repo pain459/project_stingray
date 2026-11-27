@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll GitHub Releases for a new Stingray build
+
+[Timer]
+OnCalendar=*:0/10
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

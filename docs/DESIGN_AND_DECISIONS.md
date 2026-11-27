@@ -101,6 +101,9 @@ storage and in-memory health only.
 | Script cache busting with `?v=N` in `index.html` | Browsers otherwise serve stale JS after deployment | Relying on hard refresh by users |
 | I²C reads via `smbus2.i2c_msg.read()` + `i2c_rdwr()` | Sensirion command-then-read chips NACK an injected SMBus register byte | `read_i2c_block_data` and raw ioctl attempts (both failed) |
 | Gas indices via a pure-Python port of Sensirion's v3.2.0 algorithm | The datasheet has no raw→index formula; a linear approximation would be wrong | Reporting raw signals as indices |
+| Tag-driven GitHub Release with a prebuilt arm64 venv, auto-deployed by a Pi timer | GitHub is the only source of truth; the exact evaluated artifact runs on the Pi and the Pi needs no git repo | Git pull on the Pi, or resolving/compiling dependencies on the Pi |
+| Immutable release directories + `current` symlink, last 3 kept | Atomic cutover and automatic rollback without touching `/mnt/stingray` data | In-place updates that cannot be undone |
+| Evaluate builds with a dry-run dispatch before any tag or Pi change | Build time and artifact contents are verified on GitHub first, as requested | Publishing a release or touching the Pi before evaluation |
 
 ---
 

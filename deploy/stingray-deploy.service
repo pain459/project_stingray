@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy the latest Stingray release from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ravik
+WorkingDirectory=/home/ravik
+ExecStart=/home/ravik/bin/stingray-deploy poll

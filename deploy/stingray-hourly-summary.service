@@ -7,10 +7,10 @@ Wants=ollama.service
 Type=oneshot
 User=monusr
 Group=monusr
-WorkingDirectory=/home/ravik/src_git/project_stingray
+WorkingDirectory=/opt/stingray/current
 EnvironmentFile=-/etc/stingray/telegram.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/ravik/src_git/project_stingray/.venv/bin/python -m stingray.summary_job --config /home/ravik/src_git/project_stingray/config/application.combined.yaml
+ExecStart=/opt/stingray/current/.venv/bin/python -m stingray.summary_job --config /opt/stingray/current/config/application.combined.yaml
 Nice=15
 IOSchedulingClass=idle
 

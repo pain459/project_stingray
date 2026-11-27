@@ -1,0 +1,22 @@
+[Unit]
+Description=Stingray Air Quality Monitor
+After=network.target
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+User=monusr
+Group=monusr
+WorkingDirectory=/opt/stingray/current
+ExecStart=/opt/stingray/current/.venv/bin/python -m stingray.main --config /opt/stingray/current/config/application.combined.yaml
+Restart=on-failure
+RestartSec=5
+Environment=PATH=/home/ravik/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stingray
+
+[Install]
+WantedBy=multi-user.target

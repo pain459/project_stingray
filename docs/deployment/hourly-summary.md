@@ -136,34 +136,14 @@ The dashboard card shows the same values as compact metric tiles with a
 previous-hour change badge, plus separate Notes and Recommended practices
 lists.
 
-## Deploying from `pathfinder` (one command)
+## Deployment
 
-The Pi repository is owned by `monusr` (the service user) and `ravik` deploys it.
-Run this **once** on the Pi to make that shared without `sudo -u monusr` on every
-pull:
-
-```sh
-sudo bash /tmp/stingray-permissions-setup.sh
-```
-
-It adds `ravik` to the `monusr` group (the repo is already `664`/`775`), sets the
-setgid bit on repo directories so new files keep the group, and installs a
-narrow sudoers rule that permits only
-`/usr/bin/systemctl restart stingray.service` without a password. Reconnect SSH
-afterwards so the new group membership takes effect.
-
-Then, from `pathfinder`, a full deploy is one command:
-
-```sh
-./scripts/deploy-pi.sh            # deploys main
-./scripts/deploy-pi.sh <branch>   # or a specific branch
-```
-
-The script fetches and refuses to deploy unless the local branch is pushed, then
-over SSH it pulls with `--ff-only`, restarts `stingray.service`, waits for the
-service and `/api/health`, and prints the served `summary.js?v=N`. Host, user,
-path and key can be overridden with `STINGRAY_PI_HOST`, `STINGRAY_PI_USER`,
-`STINGRAY_PI_REPO` and `STINGRAY_PI_KEY`.
+Deployment is release-based: GitHub builds one arm64 artifact and the Pi runs
+exactly that build, with no git checkout. See
+[release-and-deploy.md](release-and-deploy.md) for building, bootstrapping the
+Pi, polling releases, verifying and rolling back. The older
+`scripts/deploy-pi.sh` git-pull flow is superseded and will be removed after
+cutover.
 
 ## Manual runs
 
