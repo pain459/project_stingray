@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit cbf6f30. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit 64af31a. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -7,12 +7,16 @@
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
-# - Runbook - project_stingray - Deploy from pathfinder to Pi (note:pfq82urnpiyjk2w8gzjb) [verified]
+# - Runbook - project_stingray - Deploy from pathfinder to Pi (note:pfq82urnpiyjk2w8gzjb) [superseded by release model]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
 # - Gotcha - project_stingray - Sensirion I2C Protocol Traps (note:fcgj8n7po6773f0a6vgp)
 # - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
+#
+# Release / deployment (current)
+# - Decision - project_stingray - GitHub Release Build and Pi Auto-Deploy (note:r12f3agbargyl1wsbai8)
+# - Runbook - project_stingray - Build and Evaluate GitHub Release (note:he6pvq13x9jccdjc7ck8)
 #
 # Code maps
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
@@ -59,4 +63,5 @@
 # docs/DESIGN_AND_DECISIONS.md; README now links all guides.
 # Telegram compact curated card at 9ddf2ce (7 metrics, code rows, raw signals hidden).
 # One-command Pi deploy at cbf6f30 via scripts/deploy-pi.sh; monusr permissions fixed.
+# GitHub Release v0.2.0 published at 64af31a: arm64 venv tarball + SHA256, ~2m GitHub build, public unauthenticated download. Pi cutover pending user go-ahead.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
