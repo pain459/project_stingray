@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main commit 43aae91 (v0.2.6 pending approval); tag v0.2.5 / Pi 0.2.5 verified with green CI, auto-deploy, load ~0.8, ~8 queries/min, model_used true. History view 400 fixed in store.js (v0.2.6), Pi still on 0.2.5. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main/tag commit ab9e53a, release v0.2.6 published and force deployed to Pi at 14:34 UTC (user approved), history URL 400 fixed and all metric history URLs 200; prior v0.2.5 verification: green CI, load ~0.8, ~8 queries/min, model_used true. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -60,7 +60,7 @@
 # (7) Pi repo is monusr-owned; ravik is in group monusr and setgid dirs keep new
 # files shared. sudo -n expires with the interactive timestamp — a narrow NOPASSWD
 # rule for /usr/bin/systemctl restart stingray.service is now permanent, NOT temporary.
-# (10) HISTORY_URL already contains ?mode=history: append &metric=..., never ?metric=..., or the server returns 400 unknown mode (gotcha note:qj5im2u5bx1zns1jpvzc, fixed at 43aae91 for v0.2.6).
+# (10) HISTORY_URL already contains ?mode=history: append &metric=..., never ?metric=..., or the server returns 400 unknown mode (gotcha note:qj5im2u5bx1zns1jpvzc; fixed at 43aae91, released and force deployed as v0.2.6 / ab9e53a).
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
