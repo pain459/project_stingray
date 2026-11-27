@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, commit 5495556. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit cbf6f30. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -7,10 +7,12 @@
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
+# - Runbook - project_stingray - Deploy from pathfinder to Pi (note:pfq82urnpiyjk2w8gzjb) [verified]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
 # - Gotcha - project_stingray - Sensirion I2C Protocol Traps (note:fcgj8n7po6773f0a6vgp)
 # - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
+# - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 #
 # Code maps
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
@@ -39,18 +41,22 @@
 # read shared state via self.state (self.network does not exist on the handler).
 # (6) DuckDB defaults to 32 threads; use connect_read_limited() (threads=2) for all
 # read queries or dashboard polling starves Ollama on the 4-core Pi.
+# (7) Pi repo is monusr-owned; ravik is in group monusr and setgid dirs keep new
+# files shared. sudo -n expires with the interactive timestamp — a narrow NOPASSWD
+# rule for /usr/bin/systemctl restart stingray.service is now permanent, NOT temporary.
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
 # c64ebdf: live process, active Parquet store and served JS are hardware-only; scripts/backfill.py
-# removed on Pi too. Both mock-era SQLite DBs quarantined to /mnt/stingray/archive/; temporary
-# sudoers entry should be removed by the user now that verification is complete.
+# removed on Pi too. Both mock-era SQLite DBs quarantined to /mnt/stingray/archive/.
 # Hourly local-LLM summary deployed at 83bfc10: qwen2.5:0.5b, Ollama localhost-only,
 # live summary via /api/summaries/latest; Telegram delivery verified 23:23 IST via
 # /etc/stingray/telegram.env (root:root 0600) and the hourly systemd unit.
 # On-demand dashboard button + HTML Telegram deployed at d3c1a7e; 10-minute server-side
 # cooldown in /mnt/stingray/summaries/.refresh_state.json. CPU fix at 5e7c88e (DuckDB 2
 # threads, UI polls busy up to 7 min) is pulled on the Pi; docs at 5495556.
-# Never run summary_job or validate_gas_sensors.py while the other is active.
 # Reproducible build docs committed at 5495556: docs/BUILD_GUIDE.md, docs/hardware/{wiring,sensors,inventory}.md,
 # docs/DESIGN_AND_DECISIONS.md; README now links all guides.
+# Telegram compact curated card at 9ddf2ce (7 metrics, code rows, raw signals hidden).
+# One-command Pi deploy at cbf6f30 via scripts/deploy-pi.sh; monusr permissions fixed.
+# Never run summary_job or validate_gas_sensors.py while the other is active.
