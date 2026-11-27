@@ -1,8 +1,8 @@
 /**
- * app.js — Entry point: theme toggle, init, polling loops.
+ * app.js — Entry point: theme toggle and one-time widget setup.
  *
  * Wrapped in an IIFE so its top-level declarations do not collide with the
- * other dashboard scripts. Loads after chart.js, history.js, live.js.
+ * other dashboard scripts. The polling loop lives in store.js, not here.
  */
 (function () {
   'use strict';
@@ -26,25 +26,10 @@
 
   function start() {
     window.updateHistoryControls();
-    window.fetchLive();
-    window.fetchSystem();
-    window.fetchSummary();
-    window.loadHistory();
     window.setupChartInteractions();
-
-    setInterval(window.fetchLive, 5000);
-    setInterval(window.fetchSystem, 30000);
-    setInterval(window.fetchSummary, 300000);
-
-    // Refresh history on a slower cadence than live values.
-    setInterval(function () {
-      const refreshMs = window.HIST.hours <= 6 ? 30000 : 300000;
-      if (Date.now() - window.HIST.lastLoad >= refreshMs) {
-        window.HIST.lastLoad = Date.now();
-        window.loadHistory();
-      }
-    }, 30000);
-
+    window.loadHistory();
+    // One store owns the single poll loop; widgets only subscribe to it.
+    window.DP.start();
     window.addEventListener('resize', window.drawHistory);
   }
 

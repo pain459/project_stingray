@@ -1,4 +1,4 @@
-"""Regression tests for the /api/live response shape (no HTTP server needed)."""
+"""Regression tests for the legacy /api/live response shape (no HTTP server)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import io
 import json
 
 from stingray.api.server import ApiHandler, ApiState
+from stingray.core.models import SensorId
 from stingray.core.network import NetworkInfo
 
 
@@ -20,7 +21,21 @@ class _FakeQuery:
         return 7
 
 
+class _FakeStats:
+    reads_ok = 1
+    reads_failed = 0
+    measurements = 7
+    last_error = ""
+
+
 class _FakeHandler:
+    _latest_payload = ApiHandler._latest_payload
+    _summaries_store = ApiHandler._summaries_store
+    _sensor_health = ApiHandler._sensor_health
+    _system_payload = ApiHandler._system_payload
+    _summary_payload = ApiHandler._summary_payload
+    _deploy_status_payload = ApiHandler._deploy_status_payload
+
     def __init__(self, state: ApiState) -> None:
         self.state = state
         self.wfile = io.BytesIO()
@@ -37,6 +52,8 @@ class _FakeHandler:
 
 
 class _FakeScheduler:
+    stats = {SensorId.SPS30: _FakeStats()}
+
     def health(self) -> dict:
         return {}
 

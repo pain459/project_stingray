@@ -1,15 +1,15 @@
 /**
- * history.js — /api/history fetch, metric/range state, stats display.
+ * history.js — metric/range state and local chart data.
  *
- * Wrapped in an IIFE so its top-level declarations do not collide with the
- * other dashboard scripts. Owns window.HIST. Exposes:
- *   window.updateHistoryControls, window.updateHistoryStats,
- *   window.loadHistory, window.selectMetric, window.selectRange
+ * History is lazy and cached by (metric, hours) in store.js. Live samples from
+ * the latest datapoint snapshot are appended in the browser; this file never
+ * fetches the API directly. Wrapped in an IIFE to keep window.* intact.
  */
 (function () {
   'use strict';
 
   const $ = id => document.getElementById(id);
+  let lastRevision = -1;
 
   const METRIC_META = {
     pm1_ug_m3: { label: 'PM1.0', unit: 'µg/m³', decimals: 1 },
@@ -27,11 +27,26 @@
 
   window.HIST = {
     metric: 'pm2_5_ug_m3', hours: 24, samples: [], label: 'PM2.5', unit: 'µg/m³', decimals: 1,
-    stats: null, lastLoad: 0, error: '', requestSeq: 0,
+    stats: null, loaded: false, nextCursor: null, lastLoad: 0, error: '', requestSeq: 0,
     viewStart: 0, viewEnd: 1,
     dragging: false, dragStartX: 0, dragEndX: 0,
     hoverIdx: -1
   };
+
+  function computeStats(samples) {
+    const values = (samples || [])
+      .map(function (row) { return Number(row[1]); })
+      .filter(function (value) { return Number.isFinite(value); });
+    if (!values.length) return null;
+    let total = 0;
+    values.forEach(function (value) { total += value; });
+    return {
+      min: Math.min.apply(null, values),
+      avg: total / values.length,
+      max: Math.max.apply(null, values),
+      count: values.length
+    };
+  }
 
   function updateHistoryControls() {
     const H = window.HIST;
@@ -63,42 +78,87 @@
     $('hmaxunit').textContent = H.unit;
   }
 
+  function resetHistory() {
+    const H = window.HIST;
+    H.requestSeq++;
+    H.samples = [];
+    H.stats = null;
+    H.loaded = false;
+    H.nextCursor = null;
+    H.error = '';
+    H.viewStart = 0;
+    H.viewEnd = 1;
+    updateHistoryControls();
+    updateHistoryStats();
+    window.drawHistory();
+  }
+
   async function loadHistory() {
     const H = window.HIST;
     H.requestSeq++;
     const seq = H.requestSeq;
+    $('historyMeta').textContent = 'Loading history...';
     try {
-      const r = await fetch('/api/history?metric=' + encodeURIComponent(H.metric) + '&hours=' + H.hours, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
+      const entry = await window.DP.history(H.metric, H.hours);
       if (seq !== H.requestSeq) return;
-      H.samples = d.samples || [];
-      H.stats = d.stats || null;
+      H.samples = (entry && entry.samples) || [];
+      H.stats = computeStats(H.samples);
+      H.nextCursor = entry ? entry.next_cursor : null;
+      H.loaded = true;
+      H.lastLoad = Date.now();
       H.error = '';
-      H.viewStart = 0; H.viewEnd = 1;
+      H.viewStart = 0;
+      H.viewEnd = 1;
       updateHistoryStats();
       window.drawHistory();
-      $('historyMeta').textContent = (d.returned || H.samples.length) + ' samples · ' + (d.hours || H.hours) + 'h range';
+      $('historyMeta').textContent = H.samples.length + ' samples · ' + H.hours + 'h range';
     } catch (e) {
       if (seq !== H.requestSeq) return;
+      H.loaded = false;
       H.error = e.message;
       $('historyMeta').textContent = 'History unavailable: ' + e.message;
       window.drawHistory();
     }
   }
 
-  function selectMetric(metric) {
+  function latestDatapoint(payload, metric) {
+    const points = (payload && (payload.datapoints || payload.live)) || [];
+    for (let i = 0; i < points.length; i++) {
+      if (points[i].metric === metric) return points[i];
+    }
+    return null;
+  }
+
+  function appendLiveSample(state) {
+    if (!state || !state.latest || state.revision === lastRevision) return;
+    lastRevision = state.revision;
     const H = window.HIST;
-    H.metric = metric; H.samples = []; H.stats = null; H.error = '';
-    H.viewStart = 0; H.viewEnd = 1;
-    updateHistoryControls(); updateHistoryStats(); window.drawHistory(); loadHistory();
+    if (!H.loaded) return;
+    const point = latestDatapoint(state.latest, H.metric);
+    if (!point || point.observed_at == null || point.value == null) return;
+    const epoch = Date.parse(point.observed_at) / 1000;
+    if (!Number.isFinite(epoch)) return;
+    if (epoch < Date.now() / 1000 - H.hours * 3600) return;
+    const entry = window.DP.mergeHistory(H.metric, H.hours, [[epoch, point.value]]);
+    if (!entry) return;
+    H.samples = entry.samples || [];
+    H.stats = computeStats(H.samples);
+    H.nextCursor = entry.next_cursor;
+    updateHistoryStats();
+    $('historyMeta').textContent = H.samples.length + ' samples · ' + H.hours + 'h range · live';
+    window.drawHistory();
+  }
+
+  function selectMetric(metric) {
+    window.HIST.metric = metric;
+    resetHistory();
+    loadHistory();
   }
 
   function selectRange(hours) {
-    const H = window.HIST;
-    H.hours = Number(hours); H.samples = []; H.stats = null; H.error = '';
-    H.viewStart = 0; H.viewEnd = 1;
-    updateHistoryControls(); window.drawHistory(); loadHistory();
+    window.HIST.hours = Number(hours);
+    resetHistory();
+    loadHistory();
   }
 
   window.updateHistoryControls = updateHistoryControls;
@@ -106,4 +166,6 @@
   window.loadHistory = loadHistory;
   window.selectMetric = selectMetric;
   window.selectRange = selectRange;
+
+  if (window.DP) window.DP.subscribe(appendLiveSample);
 })();

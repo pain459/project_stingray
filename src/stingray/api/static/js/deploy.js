@@ -136,23 +136,31 @@
     }
   }
 
+  function renderStatus(payload) {
+    if (!payload || payload.configured === false) {
+      setStatus('Web deployment disabled');
+    } else if (payload.state === 'running') {
+      setStatus('A deployment is running...');
+    } else if (payload.state === 'success' || payload.state === 'error') {
+      setStatus(
+        'Last deploy: ' + payload.state +
+        (payload.version ? ' v' + payload.version : '') +
+        ' · ' + formatTime(payload.finished_at)
+      );
+    } else {
+      setStatus('No web deploy yet');
+    }
+  }
+
   async function refreshStatus() {
     if (busy) return;
+    const current = window.DP && window.DP.state.latest;
+    if (current && current.deploy) {
+      renderStatus(current.deploy);
+      return;
+    }
     try {
-      const payload = await fetchStatus();
-      if (!payload || payload.configured === false) {
-        setStatus('Web deployment disabled');
-      } else if (payload.state === 'running') {
-        setStatus('A deployment is running...');
-      } else if (payload.state === 'success' || payload.state === 'error') {
-        setStatus(
-          'Last deploy: ' + payload.state +
-          (payload.version ? ' v' + payload.version : '') +
-          ' · ' + formatTime(payload.finished_at)
-        );
-      } else {
-        setStatus('No web deploy yet');
-      }
+      renderStatus(await fetchStatus());
     } catch (err) {
       setStatus('Deploy status unavailable');
     }
@@ -163,6 +171,12 @@
     const force = $('deployForce');
     if (latest) latest.addEventListener('click', function () { trigger(false); });
     if (force) force.addEventListener('click', function () { trigger(true); });
+    if (window.DP) {
+      window.DP.subscribe(function (state) {
+        if (busy || !state || !state.latest || !state.latest.deploy) return;
+        renderStatus(state.latest.deploy);
+      });
+    }
     refreshStatus();
   }
 

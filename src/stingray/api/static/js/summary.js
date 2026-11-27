@@ -21,6 +21,7 @@
   let cooldownUntil = 0;
   let busy = false;
   let pollTimer = null;
+  let lastRevision = -1;
 
   function formatTime(iso) {
     if (!iso) return 'unknown';
@@ -188,14 +189,17 @@
     return await response.json();
   }
 
+  function renderSnapshot(state) {
+    if (!state || !state.latest || state.revision === lastRevision) return;
+    lastRevision = state.revision;
+    const block = state.latest.summary || {};
+    render(block.summary || null);
+    applyRefreshState(block.refresh);
+  }
+
   async function fetchSummary() {
-    try {
-      const body = await fetchLatest();
-      render(body && body.summary ? body.summary : null);
-      applyRefreshState(body.refresh);
-    } catch (err) {
-      render(null);
-    }
+    // Legacy entry point: ask the single store for a fresh snapshot.
+    await window.DP.refresh();
   }
 
   function stopPolling() {
@@ -289,6 +293,7 @@
     if (button) button.addEventListener('click', triggerRefresh);
     setInterval(updateButton, 1000);
     updateButton();
+    if (window.DP) window.DP.subscribe(renderSnapshot);
   }
 
   window.fetchSummary = fetchSummary;
