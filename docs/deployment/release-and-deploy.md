@@ -13,7 +13,7 @@ runs exactly that artifact**. The Pi no longer needs a git checkout. Data under
      arm64 Python 3.13 venv with the `hardware` extra.
    - `stingray-<version>-arm64.tar.gz.sha256`.
 3. The Pi's `stingray-deploy.timer` polls the public GitHub Releases API every
-   10 minutes. On a new version it verifies the checksum, extracts the tarball
+   30 minutes. On a new version it verifies the checksum, extracts the tarball
    into `/opt/stingray/releases/<version>`, flips `/opt/stingray/current`,
    restarts `stingray.service`, waits for `/api/health`, and rolls back
    automatically if the service does not come up healthy.

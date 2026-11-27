@@ -2,7 +2,7 @@
 Description=Poll GitHub Releases for a new Stingray build
 
 [Timer]
-OnCalendar=*:0/10
+OnCalendar=*:0/30
 AccuracySec=1min
 Persistent=true
 
