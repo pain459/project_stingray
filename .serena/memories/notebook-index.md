@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-26, commit 83bfc10. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, commit 5e7c88e. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 #
@@ -10,6 +10,7 @@
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
 # - Gotcha - project_stingray - Sensirion I2C Protocol Traps (note:fcgj8n7po6773f0a6vgp)
 # - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
+# - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 #
 # Code maps
 # - Code Map - project_stingray - Core Architecture and Scheduler (note:93ltsompta5zwxq1mc75)
@@ -36,6 +37,8 @@
 # running scripts/validate_gas_sensors.py or the two processes corrupt I2C reads;
 # (4) SPS30 uint16 TPS word is nm, not µm — divide by 1000; (5) API handler methods
 # read shared state via self.state (self.network does not exist on the handler).
+# (6) DuckDB defaults to 32 threads; use connect_read_limited() (threads=2) for all
+# read queries or dashboard polling starves Ollama on the 4-core Pi.
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
@@ -45,4 +48,7 @@
 # Hourly local-LLM summary deployed at 83bfc10: qwen2.5:0.5b, Ollama localhost-only,
 # live summary via /api/summaries/latest; Telegram delivery verified 23:23 IST via
 # /etc/stingray/telegram.env (root:root 0600) and the hourly systemd unit.
+# On-demand dashboard button + HTML Telegram deployed at d3c1a7e; 10-minute server-side
+# cooldown in /mnt/stingray/summaries/.refresh_state.json. CPU fix at 5e7c88e (DuckDB 2
+# threads, UI polls busy up to 7 min) is pushed but not yet pulled on the Pi.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
