@@ -141,9 +141,8 @@ lists.
 Deployment is release-based: GitHub builds one arm64 artifact and the Pi runs
 exactly that build, with no git checkout. See
 [release-and-deploy.md](release-and-deploy.md) for building, bootstrapping the
-Pi, polling releases, verifying and rolling back. The older
-`scripts/deploy-pi.sh` git-pull flow is superseded and will be removed after
-cutover.
+Pi, polling releases, verifying and rolling back. The old git-pull deploy flow
+was removed after the cutover on 2026-11-27.
 
 ## Manual runs
 
