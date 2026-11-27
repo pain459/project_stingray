@@ -4,10 +4,9 @@ Shows live sensor data (PM2.5, CO2, temperature, humidity) on the LCD.
 """
 
 import time
-from typing import Optional
 
-import spidev
 import RPi.GPIO as GPIO
+import spidev
 
 
 class ILI9341Display:
@@ -32,7 +31,7 @@ class ILI9341Display:
         self.spi_cs = spi_cs
         self.max_speed_hz = max_speed_hz
 
-        self._spi: Optional[spidev.SpiDev] = None
+        self._spi: spidev.SpiDev | None = None
         self._initialized = False
 
     def _spi_write(self, data: bytes) -> None:
@@ -148,11 +147,11 @@ class ILI9341Display:
 
     def show_sensor_data(
         self,
-        pm25: Optional[float] = None,
-        pm10: Optional[float] = None,
-        co2: Optional[float] = None,
-        temp: Optional[float] = None,
-        humidity: Optional[float] = None,
+        pm25: float | None = None,
+        pm10: float | None = None,
+        co2: float | None = None,
+        temp: float | None = None,
+        humidity: float | None = None,
     ) -> None:
         """Display live sensor data on the LCD."""
         if not self._initialized:
@@ -167,16 +166,16 @@ class ILI9341Display:
 
     def _draw_status_indicator(
         self,
-        pm25: Optional[float],
-        co2: Optional[float],
-        temp: Optional[float],
-        humidity: Optional[float],
+        pm25: float | None,
+        co2: float | None,
+        temp: float | None,
+        humidity: float | None,
     ) -> None:
         """Draw a simple status indicator showing sensor data availability."""
         # Display is rotated 90 degrees (MADCTL 0x08), so:
         # - X axis goes from top to bottom (0-319)
         # - Y axis goes from left to right (0-239)
-        
+
         # Draw larger colored squares for each sensor, spread across the screen
         # PM2.5 - top left (X=10, Y=10)
         if pm25 is not None:
@@ -202,22 +201,26 @@ class ILI9341Display:
         else:
             self._draw_square(280, 200, 40, 40, (50, 50, 50))
 
-    def _draw_square(self, x: int, y: int, width: int, height: int, color: tuple[int, int, int]) -> None:
+    def _draw_square(
+        self, x: int, y: int, width: int, height: int, color: tuple[int, int, int]
+    ) -> None:
         """Draw a filled square at the given position."""
         if not self._initialized:
             raise RuntimeError("Display not initialized")
 
         # Set address window
         self._write_cmd(0x2A)
-        self._write_data(bytes([
-            (x >> 8) & 0xFF, x & 0xFF,
-            ((x + width - 1) >> 8) & 0xFF, (x + width - 1) & 0xFF
-        ]))
+        self._write_data(
+            bytes(
+                [(x >> 8) & 0xFF, x & 0xFF, ((x + width - 1) >> 8) & 0xFF, (x + width - 1) & 0xFF]
+            )
+        )
         self._write_cmd(0x2B)
-        self._write_data(bytes([
-            (y >> 8) & 0xFF, y & 0xFF,
-            ((y + height - 1) >> 8) & 0xFF, (y + height - 1) & 0xFF
-        ]))
+        self._write_data(
+            bytes(
+                [(y >> 8) & 0xFF, y & 0xFF, ((y + height - 1) >> 8) & 0xFF, (y + height - 1) & 0xFF]
+            )
+        )
 
         # Fill with color
         self._write_cmd(0x2C)

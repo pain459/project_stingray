@@ -150,9 +150,7 @@ def test_etag_returns_304_without_query(monkeypatch, tmp_path: Path) -> None:
         _, _, first_response = _get(conn, "/api/datapoints?mode=latest")
         etag = first_response.getheader("ETag")
         assert etag
-        status, body, _ = _get(
-            conn, "/api/datapoints?mode=latest", {"If-None-Match": etag}
-        )
+        status, body, _ = _get(conn, "/api/datapoints?mode=latest", {"If-None-Match": etag})
     assert status == 304
     assert body == b""
     assert _FakeQuery.latest_calls == 1
@@ -168,8 +166,7 @@ def test_history_uses_since_cursor(monkeypatch, tmp_path: Path) -> None:
         cursor = first["next_cursor"]
         _, second_body, _ = _get(
             conn,
-            "/api/datapoints?mode=history&metric=pm2_5_ug_m3&hours=6&limit=2"
-            "&since=" + str(cursor),
+            "/api/datapoints?mode=history&metric=pm2_5_ug_m3&hours=6&limit=2&since=" + str(cursor),
         )
         second = json.loads(second_body)
     assert first["samples"] == [[_BASE_EPOCH + 1, 1.0], [_BASE_EPOCH + 2, 2.0]]

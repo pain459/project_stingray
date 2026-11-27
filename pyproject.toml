@@ -50,6 +50,7 @@ packages = ["src/stingray"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests/stubs"]
 markers = [
     "hardware: tests that require physical sensor hardware",
 ]

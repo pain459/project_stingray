@@ -19,9 +19,7 @@ def _config(mode: str, **sensors: bool) -> AppConfig:
 
 class TestMockDrivers:
     def test_builds_one_mock_per_enabled_sensor(self) -> None:
-        config = _config(
-            "mock", sht45=True, scd4x=True, sgp41=True, sps30=True, pi=True
-        )
+        config = _config("mock", sht45=True, scd4x=True, sgp41=True, sps30=True, pi=True)
 
         drivers = build_mock_drivers(config)
 
@@ -50,9 +48,7 @@ class TestMockDrivers:
 
 class TestHardwareDrivers:
     def test_sht45_only_is_the_supported_onboarding_state(self) -> None:
-        config = _config(
-            "hardware", sht45=True, scd4x=False, sgp41=False, sps30=False
-        )
+        config = _config("hardware", sht45=True, scd4x=False, sgp41=False, sps30=False)
 
         drivers = build_hardware_drivers(config)
 
@@ -75,9 +71,7 @@ class TestHardwareDrivers:
         assert drivers[0].address == 0x45
 
     def test_all_enabled_sensors_build_hardware_drivers(self) -> None:
-        config = _config(
-            "hardware", sht45=True, scd4x=True, sgp41=True, sps30=True, pi=True
-        )
+        config = _config("hardware", sht45=True, scd4x=True, sgp41=True, sps30=True, pi=True)
 
         drivers = build_hardware_drivers(config)
 

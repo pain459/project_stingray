@@ -8,7 +8,6 @@ can read the latest values without competing for the queue.
 from __future__ import annotations
 
 import threading
-from typing import Optional
 
 from .models import Measurement, MetricId, SensorId
 
@@ -28,7 +27,7 @@ class LatestReadings:
             for m in measurements:
                 self._latest[(m.sensor, m.metric)] = m
 
-    def get(self, sensor: SensorId, metric: MetricId) -> Optional[Measurement]:
+    def get(self, sensor: SensorId, metric: MetricId) -> Measurement | None:
         """Get the latest measurement for a (sensor, metric) pair."""
         with self._lock:
             return self._latest.get((sensor, metric))

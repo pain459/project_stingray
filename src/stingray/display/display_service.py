@@ -17,10 +17,10 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional
+from contextlib import suppress
 
 from stingray.core.latest_readings import LatestReadings
-from stingray.core.models import Measurement, MetricId, SensorId
+from stingray.core.models import MetricId, SensorId
 from stingray.core.network import NetworkInfo
 from stingray.core.scheduler import SensorScheduler
 
@@ -99,10 +99,8 @@ class DisplayService:
             self._thread.join(timeout=timeout)
             self._thread = None
         if self._driver is not None:
-            try:
+            with suppress(Exception):
                 self._driver.close()
-            except Exception:
-                pass
             self._driver = None
 
     def _run(self) -> None:
@@ -138,7 +136,7 @@ class DisplayService:
         """Build a SensorSnapshot from the shared LatestReadings cache."""
         cache = self._latest.snapshot()
 
-        def get(sensor: SensorId, metric: MetricId) -> Optional[float]:
+        def get(sensor: SensorId, metric: MetricId) -> float | None:
             m = cache.get((sensor, metric))
             return m.value if m is not None else None
 
@@ -171,10 +169,18 @@ class DisplayService:
 
         # Sensor health
         health = self._scheduler.health()
-        sps30_online = health.get(SensorId.SPS30) is not None and health[SensorId.SPS30].state.value == "ready"
-        scd4x_online = health.get(SensorId.SCD4X) is not None and health[SensorId.SCD4X].state.value == "ready"
-        sht45_online = health.get(SensorId.SHT45) is not None and health[SensorId.SHT45].state.value == "ready"
-        sgp41_online = health.get(SensorId.SGP41) is not None and health[SensorId.SGP41].state.value == "ready"
+        sps30_online = (
+            health.get(SensorId.SPS30) is not None and health[SensorId.SPS30].state.value == "ready"
+        )
+        scd4x_online = (
+            health.get(SensorId.SCD4X) is not None and health[SensorId.SCD4X].state.value == "ready"
+        )
+        sht45_online = (
+            health.get(SensorId.SHT45) is not None and health[SensorId.SHT45].state.value == "ready"
+        )
+        sgp41_online = (
+            health.get(SensorId.SGP41) is not None and health[SensorId.SGP41].state.value == "ready"
+        )
 
         # Overall sensor online: at least one sensor is ready
         any_online = sps30_online or scd4x_online or sht45_online or sgp41_online

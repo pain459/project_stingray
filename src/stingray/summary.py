@@ -456,18 +456,18 @@ def _allowed_number_tokens(
                 for digits in (0, 1, 2, 3):
                     tokens.add(_fmt(value, digits))
     if outdoor is not None:
-        for value in (
+        for outdoor_value in (
             outdoor.temperature_c,
             outdoor.precipitation_mm,
             outdoor.wind_kmh,
             outdoor.us_aqi,
             outdoor.pm2_5_ug_m3,
         ):
-            if value is None:
+            if outdoor_value is None:
                 continue
             for digits in (0, 1, 2, 3):
-                tokens.add(_fmt(value, digits))
-            tokens.add(str(int(round(value))))
+                tokens.add(_fmt(outdoor_value, digits))
+            tokens.add(str(int(round(outdoor_value))))
     return tokens
 
 
@@ -596,9 +596,7 @@ def _telegram_blocks(summary: Summary) -> dict[str, list[str]]:
     return {
         "values": values,
         "comparison": [
-            _pretty_units(f.message)
-            for f in summary.findings
-            if f.code.endswith("_hour_change")
+            _pretty_units(f.message) for f in summary.findings if f.code.endswith("_hour_change")
         ],
         "notes": [
             _pretty_units(f.message)

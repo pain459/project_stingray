@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from stingray.core.models import METRIC_UNITS, MetricId  # noqa: E402
-from stingray.sensors.sgp41 import SGP41, SELF_TEST_PASS, CONDITIONING_CYCLES  # noqa: E402
+from stingray.sensors.sgp41 import CONDITIONING_CYCLES, SELF_TEST_PASS, SGP41  # noqa: E402
 from stingray.sensors.sht45 import SHT45  # noqa: E402
 
 
@@ -140,10 +140,7 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as exc:  # noqa: BLE001 - report, do not abort
                 sgp_error = f"{type(exc).__name__}: {exc}"
 
-            if sht_error is None:
-                sht_online = True
-            else:
-                sht_online = False
+            sht_online = sht_error is None
             if sgp_error is None and sgp.health().state.value != "disconnected":
                 sgp_online = True
             else:
@@ -161,14 +158,12 @@ def main(argv: list[str] | None = None) -> int:
             if sht_error:
                 status += f" | SHT4x error: {sht_error}"
 
-            voc_index = (
-                latest_indices[MetricId.VOC_INDEX] if sgp.gas_indices_ready else None
+            voc_index = latest_indices[MetricId.VOC_INDEX] if sgp.gas_indices_ready else None
+            nox_index = latest_indices[MetricId.NOX_INDEX] if sgp.gas_indices_ready else None
+            print(
+                f"[{cycle:05d}] SHT4x: {'ONLINE' if sht_online else 'OFFLINE'}"
+                f"   SGP41: {'ONLINE' if sgp_online else 'OFFLINE'}"
             )
-            nox_index = (
-                latest_indices[MetricId.NOX_INDEX] if sgp.gas_indices_ready else None
-            )
-            print(f"[{cycle:05d}] SHT4x: {'ONLINE' if sht_online else 'OFFLINE'}"
-                  f"   SGP41: {'ONLINE' if sgp_online else 'OFFLINE'}")
             print(
                 f"         T: {_fmt(temperature_c)} {METRIC_UNITS[MetricId.TEMPERATURE_C]}"
                 f"   RH: {_fmt(rh_percent)} {METRIC_UNITS[MetricId.RELATIVE_HUMIDITY_PERCENT]}"

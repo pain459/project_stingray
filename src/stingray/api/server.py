@@ -140,9 +140,7 @@ def _etag_for_bytes(body: bytes) -> str:
     return '"' + hashlib.sha256(body).hexdigest() + '"'
 
 
-def _bounded_int(
-    query: dict[str, list[str]], key: str, default: int, low: int, high: int
-) -> int:
+def _bounded_int(query: dict[str, list[str]], key: str, default: int, low: int, high: int) -> int:
     try:
         value = int(query.get(key, [str(default)])[0])
     except (TypeError, ValueError):
@@ -169,9 +167,7 @@ def _etag_matches(handler: BaseHTTPRequestHandler, etag: str) -> bool:
     supplied = headers.get("If-None-Match")
     if not supplied:
         return False
-    return any(
-        tag.strip().removeprefix("W/") in (etag, "*") for tag in supplied.split(",")
-    )
+    return any(tag.strip().removeprefix("W/") in (etag, "*") for tag in supplied.split(","))
 
 
 def _json_bytes_response(
@@ -211,9 +207,7 @@ def _json_response(
     cache_control: str = "no-cache, no-store, must-revalidate",
 ) -> bool:
     body = json.dumps(payload, default=str).encode("utf-8")
-    return _json_bytes_response(
-        handler, status, body, etag=etag, cache_control=cache_control
-    )
+    return _json_bytes_response(handler, status, body, etag=etag, cache_control=cache_control)
 
 
 def _html_response(handler: BaseHTTPRequestHandler, status: int, html: str) -> None:
@@ -370,9 +364,7 @@ class ApiHandler(BaseHTTPRequestHandler):
                 "mode": "latest",
                 "datapoints": datapoints,
                 "health": self._sensor_health(),
-                "network": as_dict(self.state.network)
-                if self.state.network is not None
-                else None,
+                "network": as_dict(self.state.network) if self.state.network is not None else None,
                 "total": total,
                 "system": self._system_payload(),
                 "summary": self._summary_payload(),

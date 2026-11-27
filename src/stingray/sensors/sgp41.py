@@ -225,9 +225,7 @@ class SGP41(SensorDriver):
         indices, so the driver simply omits index measurements until this is
         true. Raw signals are always published.
         """
-        return not (
-            self._voc_algorithm.warming_up or self._nox_algorithm.warming_up
-        )
+        return not (self._voc_algorithm.warming_up or self._nox_algorithm.warming_up)
 
     @property
     def compensation_source(self) -> str:
@@ -352,14 +350,15 @@ class SGP41(SensorDriver):
     def health(self) -> SensorHealth:
         if self._disconnected:
             state = SensorState.DISCONNECTED
-        elif not self._initialized and not self._closed:
-            state = SensorState.INITIALIZING
-        elif self.in_warmup or not self.gas_indices_ready:
+        elif (
+            not self._initialized
+            and not self._closed
+            or self.in_warmup
+            or not self.gas_indices_ready
+        ):
             state = SensorState.INITIALIZING
         else:
-            state = state_from_failures(
-                self._consecutive_failures, disconnected=self._disconnected
-            )
+            state = state_from_failures(self._consecutive_failures, disconnected=self._disconnected)
         msg = ""
         if state is SensorState.INITIALIZING:
             if self.in_warmup:

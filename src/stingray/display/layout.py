@@ -9,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class Region:
     """A rectangular region on the display."""
+
     x: int
     y: int
     width: int

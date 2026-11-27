@@ -81,8 +81,7 @@ class Smbus2Transport:
             from smbus2 import SMBus, i2c_msg
         except ImportError as exc:
             raise SensorInitError(
-                "smbus2 is not installed; install the hardware extra: "
-                "uv sync --extra hardware"
+                "smbus2 is not installed; install the hardware extra: uv sync --extra hardware"
             ) from exc
         self._i2c_msg = i2c_msg
         try:

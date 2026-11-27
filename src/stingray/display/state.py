@@ -4,7 +4,6 @@ Immutable snapshot of formatted sensor data for display rendering.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from .colors import DisplayLevel
 
@@ -12,17 +11,17 @@ from .colors import DisplayLevel
 @dataclass(frozen=True)
 class DisplayState:
     """Immutable snapshot of formatted sensor data for display."""
-    
+
     # Header
     date: str = ""
     time: str = ""
     #: Pi host CPU temperature (not ambient air), rendered in the header.
     cpu_temperature: str = "--"
-    
+
     # Status
     status_text: str = "AIR QUALITY: --"
     overall_level: DisplayLevel = DisplayLevel.NEUTRAL
-    
+
     # Sensor values (formatted strings)
     pm1: str = "--"
     pm25: str = "--"
@@ -34,7 +33,7 @@ class DisplayState:
     temperature: str = "--"
     humidity: str = "--"
     tps: str = "--"
-    
+
     # Severity levels for each sensor
     pm1_level: DisplayLevel = DisplayLevel.NEUTRAL
     pm25_level: DisplayLevel = DisplayLevel.NEUTRAL
@@ -43,8 +42,8 @@ class DisplayState:
     co2_level: DisplayLevel = DisplayLevel.NEUTRAL
     voc_level: DisplayLevel = DisplayLevel.NEUTRAL
     nox_level: DisplayLevel = DisplayLevel.NEUTRAL
-    
+
     # Footer
     ip_address: str | None = None
     last_updated: str = "--:--:--"
-    measurement_age: Optional[int] = None
+    measurement_age: int | None = None

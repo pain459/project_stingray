@@ -4,11 +4,12 @@
 Run this on the Pi to validate the display layout and rendering.
 """
 
-import time
 import sys
-sys.path.insert(0, '/opt/stingray/current/src')
+import time
 
-from stingray.display import ILI9341Driver, DisplayDashboard, SensorSnapshot
+sys.path.insert(0, "/opt/stingray/current/src")
+
+from stingray.display import DisplayDashboard, ILI9341Driver, SensorSnapshot
 
 
 def main():
@@ -16,11 +17,11 @@ def main():
     print("Initializing display...")
     driver = ILI9341Driver()
     driver.open()
-    
+
     # Create dashboard
     dashboard = DisplayDashboard(driver, hostname="stingray")
     dashboard.set_thresholds(pm25=35.0, pm10=55.0)
-    
+
     # Test 1: All sensors online with good values
     print("Test 1: All sensors online, good values...")
     snapshot = SensorSnapshot(
@@ -40,7 +41,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     # Test 2: PM2.5 warning level
     print("Test 2: PM2.5 warning level...")
     snapshot = SensorSnapshot(
@@ -60,7 +61,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     # Test 3: PM2.5 bad level
     print("Test 3: PM2.5 bad level...")
     snapshot = SensorSnapshot(
@@ -80,7 +81,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     # Test 4: CO2 warning
     print("Test 4: CO2 warning level...")
     snapshot = SensorSnapshot(
@@ -100,7 +101,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     # Test 5: Sensor warming up
     print("Test 5: Sensor warming up...")
     snapshot = SensorSnapshot(
@@ -120,7 +121,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     # Test 6: Sensor offline
     print("Test 6: Sensor offline...")
     snapshot = SensorSnapshot(
@@ -140,7 +141,7 @@ def main():
     )
     dashboard.render(snapshot)
     time.sleep(5)
-    
+
     print("All tests complete!")
     driver.close()
 

@@ -7,9 +7,10 @@ the bitmap fonts for improved readability and visual quality.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import cast
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -59,7 +60,9 @@ def get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return _load_font(size, bold)
 
 
-def text_size(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont) -> tuple[int, int]:
+def text_size(
+    draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont
+) -> tuple[int, int]:
     """Get the actual rendered size of text.
 
     Args:
@@ -71,7 +74,7 @@ def text_size(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont
         Tuple of (width, height) in pixels.
     """
     left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    return (right - left, bottom - top)
+    return (int(right - left), int(bottom - top))
 
 
 def draw_text(
@@ -161,7 +164,7 @@ def draw_text_fitted(
             break
 
         # Reduce font size
-        current_size = current_font.size
+        current_size = int(current_font.size)
         if current_size <= min_size:
             break
         current_font = get_font(current_size - 1, bold=current_font.getname()[1] == "Bold")
@@ -212,7 +215,7 @@ def render_region_to_rgb565(
     y: int,
     width: int,
     height: int,
-    draw_func,
+    draw_func: Callable[[ImageDraw.ImageDraw], None],
     background_rgb565: int,
 ) -> bytes:
     """Render a region to an RGB565 byte buffer.
@@ -237,10 +240,11 @@ def render_region_to_rgb565(
 
     # Convert to RGB565
     pixels = img.load()
+    assert pixels is not None
     buffer = bytearray()
     for row in range(height):
         for col in range(width):
-            r, g, b = pixels[col, row]
+            r, g, b = cast(tuple[int, int, int], pixels[col, row])
             rgb565 = rgb_to_rgb565(r, g, b)
             buffer.append((rgb565 >> 8) & 0xFF)
             buffer.append(rgb565 & 0xFF)

@@ -8,25 +8,25 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
-from typing import Optional
 
-from PIL import Image, ImageDraw
+from PIL import ImageDraw, ImageFont
 
-from .driver import ILI9341Driver
-from .layout import LAYOUT
-from .colors import COLORS, DisplayLevel, rgb565_to_rgb
 from .classification import classify_severity, get_overall_status
-from .state import DisplayState
+from .colors import COLORS, DisplayLevel, rgb565_to_rgb
+from .driver import ILI9341Driver
 from .font_truetype import (
-    get_font,
     draw_centered_text,
     draw_text_fitted,
+    get_font,
     render_region_to_rgb565,
 )
+from .layout import LAYOUT
+from .state import DisplayState
 
 log = logging.getLogger("stingray.display.dashboard")
 
@@ -42,17 +42,18 @@ def _installed_version() -> str:
 @dataclass
 class SensorSnapshot:
     """Immutable snapshot of sensor data for display."""
+
     timestamp: float
-    pm1: Optional[float] = None
-    pm25: Optional[float] = None
-    pm4: Optional[float] = None
-    pm10: Optional[float] = None
-    co2: Optional[float] = None
-    voc: Optional[float] = None
-    nox: Optional[float] = None
-    temperature: Optional[float] = None
-    humidity: Optional[float] = None
-    tps: Optional[float] = None
+    pm1: float | None = None
+    pm25: float | None = None
+    pm4: float | None = None
+    pm10: float | None = None
+    co2: float | None = None
+    voc: float | None = None
+    nox: float | None = None
+    temperature: float | None = None
+    humidity: float | None = None
+    tps: float | None = None
     #: Pi host telemetry, deliberately separate from ambient ``temperature``.
     cpu_temperature: float | None = None
     sensor_online: bool = True
@@ -72,7 +73,7 @@ class DisplayDashboard:
         self.driver = driver
         self.hostname = hostname
         self.app_version = app_version if app_version is not None else _installed_version()
-        self._last_state: Optional[DisplayState] = None
+        self._last_state: DisplayState | None = None
         self._last_render_time: float = 0.0
         self._refresh_interval: float = 1.0  # 1 second
 
@@ -87,14 +88,14 @@ class DisplayDashboard:
         self._nox_critical: float = 150.0
 
         # Font cache
-        self._fonts: dict[tuple[int, bool], object] = {}
+        self._fonts: dict[tuple[int, bool], ImageFont.FreeTypeFont] = {}
 
     def set_thresholds(self, pm25: float, pm10: float) -> None:
         """Set PM thresholds for severity classification."""
         self._pm25_threshold = pm25
         self._pm10_threshold = pm10
 
-    def _get_font(self, size: int, bold: bool = False):
+    def _get_font(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         """Get a cached font."""
         key = (size, bold)
         if key not in self._fonts:
@@ -122,7 +123,7 @@ class DisplayDashboard:
             return COLORS["black"]
         return COLORS["white"]
 
-    def _format_value(self, value: Optional[float], decimals: int) -> str:
+    def _format_value(self, value: float | None, decimals: int) -> str:
         """Format a sensor value for display."""
         if value is None:
             return "--"
@@ -130,7 +131,15 @@ class DisplayDashboard:
             return f"{int(value)}"
         return f"{value:.{decimals}f}"
 
-    def _draw_rounded_rect(self, draw: ImageDraw.ImageDraw, x: int, y: int, width: int, height: int, color: tuple[int, int, int]) -> None:
+    def _draw_rounded_rect(
+        self,
+        draw: ImageDraw.ImageDraw,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        color: tuple[int, int, int],
+    ) -> None:
         """Draw a rounded rectangle with 5-pixel corners."""
         radius = 5
         # Main body
@@ -142,9 +151,13 @@ class DisplayDashboard:
         draw.ellipse([x, y, x + 2 * radius, y + 2 * radius], fill=color)
         draw.ellipse([x + width - 2 * radius, y, x + width, y + 2 * radius], fill=color)
         draw.ellipse([x, y + height - 2 * radius, x + 2 * radius, y + height], fill=color)
-        draw.ellipse([x + width - 2 * radius, y + height - 2 * radius, x + width, y + height], fill=color)
+        draw.ellipse(
+            [x + width - 2 * radius, y + height - 2 * radius, x + width, y + height], fill=color
+        )
 
-    def _draw_thermometer_icon(self, draw: ImageDraw.ImageDraw, x: int, y: int, color: tuple[int, int, int]) -> None:
+    def _draw_thermometer_icon(
+        self, draw: ImageDraw.ImageDraw, x: int, y: int, color: tuple[int, int, int]
+    ) -> None:
         """Draw a thermometer icon using orange primitives."""
         # Thermometer body
         draw.rectangle([x + 2, y + 2, x + 6, y + 14], fill=color)
@@ -153,7 +166,9 @@ class DisplayDashboard:
         # Thermometer top
         draw.rectangle([x + 1, y, x + 7, y + 2], fill=color)
 
-    def _draw_droplet_icon(self, draw: ImageDraw.ImageDraw, x: int, y: int, color: tuple[int, int, int]) -> None:
+    def _draw_droplet_icon(
+        self, draw: ImageDraw.ImageDraw, x: int, y: int, color: tuple[int, int, int]
+    ) -> None:
         """Draw a water droplet icon using cyan primitives."""
         # Droplet top (pointed)
         draw.polygon([(x + 4, y), (x + 2, y + 4), (x + 6, y + 4)], fill=color)
@@ -172,14 +187,14 @@ class DisplayDashboard:
 
             # Date (left)
             font = self._get_font(15, bold=True)
-            draw.text((4, (height - 15) // 2), state.date, font=font, fill=rgb565_to_rgb(COLORS["white"]))
+            draw.text(
+                (4, (height - 15) // 2), state.date, font=font, fill=rgb565_to_rgb(COLORS["white"])
+            )
 
             # Pi CPU temperature (center): host telemetry, not ambient air.
             cpu_font = self._get_font(10, bold=True)
             cpu_text = (
-                f"CPU {state.cpu_temperature}°C"
-                if state.cpu_temperature != "--"
-                else "CPU --"
+                f"CPU {state.cpu_temperature}°C" if state.cpu_temperature != "--" else "CPU --"
             )
             draw_centered_text(
                 draw,
@@ -193,7 +208,12 @@ class DisplayDashboard:
             time_text = state.time
             bbox = draw.textbbox((0, 0), time_text, font=font)
             text_width = bbox[2] - bbox[0]
-            draw.text((width - text_width - 4, (height - 15) // 2), time_text, font=font, fill=rgb565_to_rgb(COLORS["white"]))
+            draw.text(
+                (width - text_width - 4, (height - 15) // 2),
+                time_text,
+                font=font,
+                fill=rgb565_to_rgb(COLORS["white"]),
+            )
 
         return render_region_to_rgb565(x, y, width, height, draw_func, COLORS["navy"])
 
@@ -211,12 +231,21 @@ class DisplayDashboard:
 
             # Status text (centered)
             font = self._get_font(15, bold=True)
-            draw_centered_text(draw, state.status_text, (0, 0, width, height), font, rgb565_to_rgb(text_color))
+            draw_centered_text(
+                draw, state.status_text, (0, 0, width, height), font, rgb565_to_rgb(text_color)
+            )
 
         return render_region_to_rgb565(x, y, width, height, draw_func, status_color)
 
-    def _render_sensor_tile(self, region_name: str, label: str, value: str, unit: str,
-                           level: DisplayLevel, icon: Optional[str] = None) -> bytes:
+    def _render_sensor_tile(
+        self,
+        region_name: str,
+        label: str,
+        value: str,
+        unit: str,
+        level: DisplayLevel,
+        icon: str | None = None,
+    ) -> bytes:
         """Render a sensor tile and return RGB565 buffer."""
         r = LAYOUT[region_name]
         x, y, width, height = r.x, r.y, r.width, r.height
@@ -332,8 +361,13 @@ class DisplayDashboard:
 
         # Overall status
         overall_level = get_overall_status(
-            pm25_level, pm10_level, co2_level, voc_level, nox_level,
-            snapshot.sensor_online, snapshot.sensor_warming
+            pm25_level,
+            pm10_level,
+            co2_level,
+            voc_level,
+            nox_level,
+            snapshot.sensor_online,
+            snapshot.sensor_warming,
         )
 
         # Format values
@@ -396,18 +430,47 @@ class DisplayDashboard:
         self._send_region("status", self._render_status(state))
 
         # Sensor tiles
-        self._send_region("pm25", self._render_sensor_tile("pm25", "PM2.5", state.pm25, "µg/m³", state.pm25_level))
-        self._send_region("co2", self._render_sensor_tile("co2", "CO2", state.co2, "ppm", state.co2_level))
-        self._send_region("pm1", self._render_sensor_tile("pm1", "PM1", state.pm1, "µg/m³", state.pm1_level))
-        self._send_region("pm4", self._render_sensor_tile("pm4", "PM4", state.pm4, "µg/m³", state.pm4_level))
-        self._send_region("pm10", self._render_sensor_tile("pm10", "PM10", state.pm10, "µg/m³", state.pm10_level))
-        self._send_region("voc", self._render_sensor_tile("voc", "VOC", state.voc, "index", state.voc_level))
-        self._send_region("nox", self._render_sensor_tile("nox", "NOx", state.nox, "index", state.nox_level))
-        self._send_region("temperature", self._render_sensor_tile("temperature", "TEMP", state.temperature, "°C",
-                                                                 DisplayLevel.NEUTRAL, icon="thermometer"))
-        self._send_region("humidity", self._render_sensor_tile("humidity", "HUMID", state.humidity, "%",
-                                                              DisplayLevel.NEUTRAL, icon="droplet"))
-        self._send_region("tps", self._render_sensor_tile("tps", "TPS", state.tps, "µm", DisplayLevel.NEUTRAL))
+        self._send_region(
+            "pm25", self._render_sensor_tile("pm25", "PM2.5", state.pm25, "µg/m³", state.pm25_level)
+        )
+        self._send_region(
+            "co2", self._render_sensor_tile("co2", "CO2", state.co2, "ppm", state.co2_level)
+        )
+        self._send_region(
+            "pm1", self._render_sensor_tile("pm1", "PM1", state.pm1, "µg/m³", state.pm1_level)
+        )
+        self._send_region(
+            "pm4", self._render_sensor_tile("pm4", "PM4", state.pm4, "µg/m³", state.pm4_level)
+        )
+        self._send_region(
+            "pm10", self._render_sensor_tile("pm10", "PM10", state.pm10, "µg/m³", state.pm10_level)
+        )
+        self._send_region(
+            "voc", self._render_sensor_tile("voc", "VOC", state.voc, "index", state.voc_level)
+        )
+        self._send_region(
+            "nox", self._render_sensor_tile("nox", "NOx", state.nox, "index", state.nox_level)
+        )
+        self._send_region(
+            "temperature",
+            self._render_sensor_tile(
+                "temperature",
+                "TEMP",
+                state.temperature,
+                "°C",
+                DisplayLevel.NEUTRAL,
+                icon="thermometer",
+            ),
+        )
+        self._send_region(
+            "humidity",
+            self._render_sensor_tile(
+                "humidity", "HUMID", state.humidity, "%", DisplayLevel.NEUTRAL, icon="droplet"
+            ),
+        )
+        self._send_region(
+            "tps", self._render_sensor_tile("tps", "TPS", state.tps, "µm", DisplayLevel.NEUTRAL)
+        )
 
         self._send_region("footer", self._render_footer(state))
 
@@ -425,7 +488,7 @@ class DisplayDashboard:
         self.driver._write_cmd(0x2C)
         self.driver._write_data(rgb565_buffer)
 
-    def start(self, get_snapshot: callable) -> None:
+    def start(self, get_snapshot: Callable[[], SensorSnapshot]) -> None:
         """Start the display refresh loop."""
         # Full redraw on startup
         self.driver.fill_screen(0x0000)

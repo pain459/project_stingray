@@ -45,8 +45,7 @@ header at the top of the board, SD card slot facing you.
 The active display driver is `src/stingray/display/driver.py :: ILI9341Driver`:
 
 ```python
-ILI9341Driver(spi_bus=0, spi_cs=0, dc_pin=25, reset_pin=24,
-              max_speed_hz=10_000_000)
+ILI9341Driver(spi_bus=0, spi_cs=0, dc_pin=25, reset_pin=24, max_speed_hz=10_000_000)
 ```
 
 `spi_cs=0` means SPI0 chip-select 0, i.e. physical pin 24 (BCM8). There is no

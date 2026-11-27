@@ -281,9 +281,7 @@ class SPS30(SensorDriver):
         if not self._initialized and not self._closed:
             state = SensorState.INITIALIZING
         else:
-            state = state_from_failures(
-                self._consecutive_failures, disconnected=self._disconnected
-            )
+            state = state_from_failures(self._consecutive_failures, disconnected=self._disconnected)
         return SensorHealth(
             sensor=SensorId.SPS30,
             state=state,

@@ -307,9 +307,7 @@ class TestOutdoorRules:
         assert "briefly" in aqi.action
 
     def test_very_high_aqi_is_critical(self) -> None:
-        findings = derive_findings(
-            _facts(), ThresholdsConfig(), OutdoorContext(us_aqi=180.0)
-        )
+        findings = derive_findings(_facts(), ThresholdsConfig(), OutdoorContext(us_aqi=180.0))
         aqi = next(f for f in findings if f.code == "outdoor_aqi_elevated")
         assert aqi.severity == "critical"
         assert "recirculation" in aqi.action
@@ -441,9 +439,7 @@ class TestOutdoorFetch:
         monkeypatch.setattr("stingray.summary_job.call_ollama", fake_ollama)
         config = AppConfig(
             summary=SummaryConfig(
-                external=ExternalContextConfig(
-                    enabled=True, latitude=17.38, longitude=78.36
-                )
+                external=ExternalContextConfig(enabled=True, latitude=17.38, longitude=78.36)
             )
         )
         summary = generate(_facts(), config, model="test-model")

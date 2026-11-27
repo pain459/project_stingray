@@ -68,9 +68,7 @@ def _live_payload(monkeypatch, network: NetworkInfo | None) -> dict:
 
 
 def test_live_includes_network(monkeypatch) -> None:
-    payload = _live_payload(
-        monkeypatch, NetworkInfo("wlan0", "192.168.68.53", -42)
-    )
+    payload = _live_payload(monkeypatch, NetworkInfo("wlan0", "192.168.68.53", -42))
     assert payload["network"] == {
         "interface": "wlan0",
         "ip_address": "192.168.68.53",

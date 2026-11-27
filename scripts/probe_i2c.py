@@ -18,6 +18,7 @@ import os
 import struct
 import sys
 import time
+from contextlib import suppress
 
 # I2C ioctl numbers (linux/i2c.h)
 I2C_SLAVE = 0x0703
@@ -57,14 +58,11 @@ def open_bus(bus: int) -> int:
         )
     except PermissionError:
         sys.exit(f"error: permission denied on {path}. Add the user to the 'i2c' group.")
-    try:
+    with suppress(OSError):
         fcntl.ioctl(fd, I2C_RETRIES, struct.pack("i", 1))
-    except OSError:
-        pass  # not all I2C controllers support this
-    try:
+    # not all I2C controllers support the retry setting
+    with suppress(OSError):
         fcntl.ioctl(fd, I2C_TIMEOUT, struct.pack("i", 1000))  # ms
-    except OSError:
-        pass
     return fd
 
 
@@ -197,7 +195,7 @@ def probe_sps30(fd: int, address: int) -> None:
 
 def probe_scd4x(fd: int, address: int) -> None:
     print(f"\nSCD4X probe at 0x{address:02X}:")
-    
+
     # Read sensor variant (command 0x202F, 3 bytes: variant, CRC)
     try:
         raw = read_after_write(fd, address, bytes([0x20, 0x2F]), 3, 0.001)
@@ -213,7 +211,7 @@ def probe_scd4x(fd: int, address: int) -> None:
     variant_names = {0: "SCD40", 1: "SCD41", 5: "SCD43"}
     variant_name = variant_names.get(variant_code, f"Unknown({variant_code})")
     print(f"  variant: {variant_name}  (CRC {'OK' if ok else 'FAIL'})")
-    
+
     # Start periodic measurement (command 0x21B1, 3 bytes: cmd, CRC)
     cmd = bytes([0x21, 0xB1])
     crc = crc8_sensirion(cmd)
@@ -223,7 +221,7 @@ def probe_scd4x(fd: int, address: int) -> None:
         print(f"  start measurement failed: {exc}")
         return
     time.sleep(0.025)
-    
+
     # Read measurement (command 0xEC05, 9 bytes: CO2, temp, RH + 3 CRCs)
     try:
         raw = read_after_write(fd, address, bytes([0xEC, 0x05]), 9, 0.005)
@@ -233,24 +231,24 @@ def probe_scd4x(fd: int, address: int) -> None:
     if len(raw) < 9:
         print(f"  measurement short read: {len(raw)} bytes")
         return
-    
+
     # Parse 3 16-bit values with CRCs
     co2_raw = (raw[0] << 8) | raw[1]
     co2_crc_ok = crc8_sensirion(raw[0:2]) == raw[2]
-    
+
     temp_raw = (raw[3] << 8) | raw[4]
     temp_crc_ok = crc8_sensirion(raw[3:5]) == raw[5]
-    
+
     rh_raw = (raw[6] << 8) | raw[7]
     rh_crc_ok = crc8_sensirion(raw[6:8]) == raw[8]
-    
+
     all_ok = co2_crc_ok and temp_crc_ok and rh_crc_ok
-    
+
     # Convert to engineering units
     co2_ppm = float(co2_raw)
     temp_c = -45.0 + 175.0 * temp_raw / 65535.0
     rh_percent = 100.0 * rh_raw / 65535.0
-    
+
     print(f"  CRCs: {'all OK' if all_ok else 'MISMATCH'}")
     print(f"  CO2: {co2_ppm:.0f} ppm")
     print(f"  Temperature: {temp_c:.1f} °C")

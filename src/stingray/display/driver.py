@@ -4,10 +4,9 @@ Handles low-level SPI communication and display initialization.
 """
 
 import time
-from typing import Optional
 
-import spidev
 import RPi.GPIO as GPIO
+import spidev
 
 
 class ILI9341Driver:
@@ -27,7 +26,7 @@ class ILI9341Driver:
         self.reset_pin = reset_pin
         self.max_speed_hz = max_speed_hz
 
-        self._spi: Optional[spidev.SpiDev] = None
+        self._spi: spidev.SpiDev | None = None
         self._initialized = False
 
     def open(self) -> None:
@@ -116,15 +115,17 @@ class ILI9341Driver:
     def set_address_window(self, x: int, y: int, width: int, height: int) -> None:
         """Set the address window for drawing."""
         self._write_cmd(0x2A)
-        self._write_data(bytes([
-            (x >> 8) & 0xFF, x & 0xFF,
-            ((x + width - 1) >> 8) & 0xFF, (x + width - 1) & 0xFF
-        ]))
+        self._write_data(
+            bytes(
+                [(x >> 8) & 0xFF, x & 0xFF, ((x + width - 1) >> 8) & 0xFF, (x + width - 1) & 0xFF]
+            )
+        )
         self._write_cmd(0x2B)
-        self._write_data(bytes([
-            (y >> 8) & 0xFF, y & 0xFF,
-            ((y + height - 1) >> 8) & 0xFF, (y + height - 1) & 0xFF
-        ]))
+        self._write_data(
+            bytes(
+                [(y >> 8) & 0xFF, y & 0xFF, ((y + height - 1) >> 8) & 0xFF, (y + height - 1) & 0xFF]
+            )
+        )
 
     def fill_rectangle(self, x: int, y: int, width: int, height: int, color: int) -> None:
         """Fill a rectangle with a color (RGB565 integer)."""

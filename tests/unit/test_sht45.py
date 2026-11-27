@@ -135,8 +135,14 @@ class TestReadPath:
     def test_initialize_sends_soft_reset_and_reads_serial(self) -> None:
         bus = FakeTransport()
         bus.measurement = _measurement_bytes(0x6666, 0x6666)
-        bus.serial = [0x12, 0x34, crc8_sensirion([0x12, 0x34]),
-                      0x56, 0x78, crc8_sensirion([0x56, 0x78])]
+        bus.serial = [
+            0x12,
+            0x34,
+            crc8_sensirion([0x12, 0x34]),
+            0x56,
+            0x78,
+            crc8_sensirion([0x56, 0x78]),
+        ]
         driver = _driver(bus)
 
         driver.initialize()
@@ -292,8 +298,14 @@ class TestRepr:
     def test_repr_reports_address_and_serial(self) -> None:
         bus = FakeTransport()
         bus.measurement = _measurement_bytes(0x6666, 0x6666)
-        bus.serial = [0x00, 0x00, crc8_sensirion([0x00, 0x00]),
-                      0x00, 0x01, crc8_sensirion([0x00, 0x01])]
+        bus.serial = [
+            0x00,
+            0x00,
+            crc8_sensirion([0x00, 0x00]),
+            0x00,
+            0x01,
+            crc8_sensirion([0x00, 0x01]),
+        ]
         driver = _driver(bus)
         driver.initialize()
         text = repr(driver)

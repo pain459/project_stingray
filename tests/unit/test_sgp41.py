@@ -16,8 +16,8 @@ from stingray.sensors.sgp41 import (
     CONDITIONING_CYCLES,
     DEFAULT_RH_TICKS,
     DEFAULT_T_TICKS,
-    SGP41,
     SELF_TEST_PASS,
+    SGP41,
     _build_command,
     crc8_sensirion,
     ticks_to_rh,
@@ -26,14 +26,24 @@ from stingray.sensors.sgp41 import (
 
 SELF_TEST_RESPONSE = [0xD4, 0x00, crc8_sensirion([0xD4, 0x00])]
 SERIAL_RESPONSE = [
-    0x00, 0x00, crc8_sensirion([0x00, 0x00]),
-    0x05, 0x9E, crc8_sensirion([0x05, 0x9E]),
-    0x86, 0x9D, crc8_sensirion([0x86, 0x9D]),
+    0x00,
+    0x00,
+    crc8_sensirion([0x00, 0x00]),
+    0x05,
+    0x9E,
+    crc8_sensirion([0x05, 0x9E]),
+    0x86,
+    0x9D,
+    crc8_sensirion([0x86, 0x9D]),
 ]
 CONDITIONING_RESPONSE = [0x6D, 0x3D, crc8_sensirion([0x6D, 0x3D])]
 MEASURE_RESPONSE = [
-    0x6D, 0x3A, crc8_sensirion([0x6D, 0x3A]),
-    0x3B, 0x98, crc8_sensirion([0x3B, 0x98]),
+    0x6D,
+    0x3A,
+    crc8_sensirion([0x6D, 0x3A]),
+    0x3B,
+    0x98,
+    crc8_sensirion([0x3B, 0x98]),
 ]
 
 
@@ -155,8 +165,10 @@ class TestReadPath:
         assert driver.gas_indices_ready
         readings = list(driver.read())
         assert [m.metric for m in readings] == [
-            MetricId.VOC_RAW, MetricId.NOX_RAW,
-            MetricId.VOC_INDEX, MetricId.NOX_INDEX,
+            MetricId.VOC_RAW,
+            MetricId.NOX_RAW,
+            MetricId.VOC_INDEX,
+            MetricId.NOX_INDEX,
         ]
         assert all(1 <= m.value <= 500 for m in readings if m.metric.value.endswith("index"))
         assert all(m.sensor is SensorId.SGP41 for m in readings)

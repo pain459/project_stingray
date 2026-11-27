@@ -42,11 +42,7 @@ def test_slow_state_uses_snapshot_subscription() -> None:
 
 def test_script_tags_are_ordered_and_cache_bumped() -> None:
     html = (_STATIC / "index.html").read_text(encoding="utf-8")
-    scripts = [
-        line.split('"')[1]
-        for line in html.splitlines()
-        if '<script src="js/' in line
-    ]
+    scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
     assert scripts == [
         "js/store.js?v=1",
         "js/chart.js?v=7",

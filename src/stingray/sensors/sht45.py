@@ -272,17 +272,13 @@ class SHT45(SensorDriver):
         self._last_read_wall = observed_at
 
         yield self._measurement(MetricId.TEMPERATURE_C, temperature_c, observed_at)
-        yield self._measurement(
-            MetricId.RELATIVE_HUMIDITY_PERCENT, humidity_percent, observed_at
-        )
+        yield self._measurement(MetricId.RELATIVE_HUMIDITY_PERCENT, humidity_percent, observed_at)
 
     def health(self) -> SensorHealth:
         if not self._initialized and not self._closed:
             state = SensorState.INITIALIZING
         else:
-            state = state_from_failures(
-                self._consecutive_failures, disconnected=self._disconnected
-            )
+            state = state_from_failures(self._consecutive_failures, disconnected=self._disconnected)
         return SensorHealth(
             sensor=SensorId.SHT45,
             state=state,

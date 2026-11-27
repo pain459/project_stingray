@@ -8,6 +8,7 @@ from enum import IntEnum
 
 class DisplayLevel(IntEnum):
     """Severity levels for air quality display."""
+
     NEUTRAL = 0
     GOOD = 1
     WARNING = 2
