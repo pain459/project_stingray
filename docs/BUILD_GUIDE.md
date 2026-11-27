@@ -59,8 +59,7 @@ the service, verify on the Pi. Never develop directly on the Pi.
 | 5 V USB-C Pi power supply | yes | Adequate for Pi 4; avoid undervoltage |
 | Sensirion SPS30 | yes | Particulate matter, **I²C mode** at `0x69` |
 | Sensirion SCD4X (SCD41 verified) | yes | CO₂, temperature, RH at `0x62` |
-| Sensirion SHT45 | yes | Temperature and RH at `0x44`; compensation source for SGP41 |
-| Sensirion SGP41 | yes | VOC and NOx indices at `0x59` |
+| Sensirion SHT45 + SGP41 **2-in-1 module** | yes | One physical board: temperature/RH at `0x44` (authoritative, compensates SGP41) and VOC/NOx at `0x59` |
 | ILI9341 2.8-inch SPI TFT | yes | 320×240, 3.3 V logic |
 | DFRobot DFR0918 terminal-block HAT | yes | Terminal breakout only — **not** a regulated power supply |
 | Jumper wires / terminal connectors | yes | Common ground across all boards is mandatory |
@@ -131,22 +130,23 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin monusr
 sudo usermod -aG i2c,spi,gpio monusr
 ```
 
-Clone the repository and install the environment (the Pi's `uv` is in
-`~/.local/bin`, which may not be on `PATH`):
+The Pi does **not** clone the repository or resolve dependencies. GitHub builds
+one arm64 release containing the application and a complete venv; the Pi
+downloads and verifies it. Only host-level prerequisites are created locally:
 
 ```sh
-export PATH="$HOME/.local/bin:$PATH"
-cd /home/ravik/src_git/project_stingray
-uv sync --extra hardware
-uv pip install RPi.GPIO
 sudo mkdir -p /var/log/stingray
 sudo chown monusr:monusr /var/log/stingray
 ```
 
-The `hardware` extra provides `smbus2` and `spidev`. `RPi.GPIO` is installed
-separately because it is only needed for the TFT control pins. Core
-dependencies (pydantic, DuckDB, PyArrow, PyYAML, Pillow) come from
-`pyproject.toml`.
+For a fresh host, run `scripts/pi-bootstrap.sh` from a GitHub checkout to
+install `/opt/stingray`, the static systemd units and the deploy command.
+Development and release builds happen on `pathfinder` (`uv sync --all-extras`);
+see [`deployment/release-and-deploy.md`](deployment/release-and-deploy.md).
+
+The release venv already contains `smbus2`, `spidev` and `RPi.GPIO` from the
+`hardware` extra, plus the core dependencies (pydantic, DuckDB, PyArrow,
+PyYAML, Pillow) from `pyproject.toml`. Nothing is compiled or installed on the Pi.
 
 Sanity-check the code without hardware first:
 
@@ -273,9 +273,10 @@ Environment="OLLAMA_CONTEXT_LENGTH=1024"
 6. **Dashboard:** open `http://<pi-address>:8081/` on the LAN.
 7. **Summary:** `curl -s http://127.0.0.1:8081/api/summaries/latest | jq`
 8. **Manual summary run (no Telegram):**
-   `.venv/bin/python -m stingray.summary_job --config config/application.combined.yaml --no-telegram`
+   `/opt/stingray/current/.venv/bin/python -m stingray.summary_job --config /opt/stingray/current/config/application.combined.yaml --no-telegram`
 
-Expected healthy signals: all four sensors `READY` in the journal, no I²C CRC
+Expected healthy signals: all four logical sensor streams `READY` in the
+journal (SHT45 and SGP41 are two streams on the one 2-in-1 module), no I²C CRC
 mismatches, `vcgencmd get_throttled` = `0x0`, and live values changing at their
 configured cadence.
 
@@ -335,12 +336,12 @@ sudo systemctl restart stingray.service
 ## 10. Development and updates
 
 ```sh
-# on pathfinder
-git push origin main
+# on pathfinder: bump version, evaluate a dry run, then tag
+git tag v0.2.0 && git push origin v0.2.0
 
-# on stingray
-sudo -u monusr git -C /home/ravik/src_git/project_stingray pull --ff-only
-sudo systemctl restart stingray.service
+# on stingray: the timer picks it up within 30 minutes, or force a check
+/home/ravik/bin/stingray-deploy poll
+/home/ravik/bin/stingray-deploy status
 sudo journalctl -u stingray.service -n 20 --no-pager
 ```
 

@@ -6,7 +6,7 @@ Run this on the Pi to validate the display layout and rendering.
 
 import time
 import sys
-sys.path.insert(0, '/home/ravik/src_git/project_stingray/src')
+sys.path.insert(0, '/opt/stingray/current/src')
 
 from stingray.display import ILI9341Driver, DisplayDashboard, SensorSnapshot
 

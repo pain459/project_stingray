@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time Pi bootstrap for the release-based deployment model.
 # Run ONCE with sudo, from the existing checkout, e.g.:
-#   sudo SRC_DIR=/home/ravik/src_git/project_stingray bash scripts/pi-bootstrap.sh
+#   sudo SRC_DIR=/path/to/temporary/checkout bash scripts/pi-bootstrap.sh
 #
 # Prepares /opt/stingray and installs static systemd units pointing at
 # /opt/stingray/current. It deliberately does NOT restart stingray.service:

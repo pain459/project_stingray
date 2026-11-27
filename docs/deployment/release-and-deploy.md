@@ -19,6 +19,17 @@ runs exactly that artifact**. The Pi no longer needs a git checkout. Data under
    automatically if the service does not come up healthy.
 4. The three newest releases are kept for rollback; older ones are deleted.
 
+## Current deployed state (2026-11-27)
+
+- Release `v0.2.0`, build sha `64af31a4d75a095031b0ccaeca958894f123cbb9`,
+  installed at `/opt/stingray/releases/0.2.0` via `/opt/stingray/current`.
+- **The Pi has no git checkout.** Code, config and the venv come only from the
+  release tarball. Data under `/mnt/stingray` and credentials under
+  `/etc/stingray` are host-owned and never part of a release.
+- Host prerequisites (service user, groups, fonts, data/log directories, static
+  systemd units, `/etc/sudoers.d/stingray-deploy`) were installed once by
+  `scripts/pi-bootstrap.sh` and are not changed by a release.
+
 ## Building / evaluating on GitHub first
 
 No Pi changes are made during evaluation. Use manual dispatch with `dry_run`
@@ -39,32 +50,75 @@ sha256sum -c ./*.sha256
 tar -tzf ./*.tar.gz | head -25
 ```
 
-Only after the build time, checksum, smoke tests and archive layout are accepted
-should a tag be pushed:
+## Cutting a release (standard process)
+
+All release work happens on `pathfinder`; the Pi is never a build host.
+
+1. **Prepare.** Land and push the changes on `main`. Confirm the working tree
+   is clean and tests pass:
+
+   ```sh
+   uv run pytest -q
+   uv lock --check
+   ```
+
+2. **Bump the version** in `pyproject.toml`, refresh the lockfile, commit and
+   push:
+
+   ```sh
+   uv lock
+   git commit -am "chore: bump version to <version>" && git push origin main
+   ```
+
+3. **Evaluate the build** on GitHub without publishing anything (see the
+   previous section). Check the build duration, SHA256, archive layout,
+   `version_info = 3.13.5`, aarch64 native extensions and absence of secrets.
+
+4. **Publish** by tagging the evaluated commit. Never re-tag or replace an
+   existing asset — fix forward with a new patch version instead:
+
+   ```sh
+   git tag v<version> && git push origin v<version>
+   gh run watch            # select the new release run
+   gh release view v<version> --json assets
+   ```
+
+5. **Verify on the Pi** (within 30 minutes automatically, or force it):
+
+   ```sh
+   /home/ravik/bin/stingray-deploy poll
+   /home/ravik/bin/stingray-deploy status
+   curl -fsS http://127.0.0.1:8081/api/health | jq
+   ```
+
+   Check `mode: hardware`, zero `reads_failed` for `sht45`, `sgp41`, `scd4x` and
+   `sps30`, and the served `summary.js?v=N`. The deploy itself is health-gated
+   and rolls back automatically if the service does not come up cleanly.
+
+6. **If health fails:** `/home/ravik/bin/stingray-deploy rollback`, then fix
+   forward with a new release.
+
+## One-time Pi bootstrap (already completed 2026-11-27)
+
+This was done at cutover and does **not** need repeating for normal releases.
+It required interactive sudo because only one narrow restart command is
+passwordless. It created `/opt/stingray` (owned `ravik:monusr`, mode `2775`),
+installed `/home/ravik/bin/stingray-deploy`, installed the static units and
+started the timers, without restarting the running service. The checkout used
+to run it has since been removed from the Pi.
+
+For disaster recovery, fetch `scripts/` and `deploy/` from GitHub to a
+temporary directory on the Pi and run:
 
 ```sh
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-## One-time Pi bootstrap (manual, with sudo)
-
-Run from the existing checkout. This installs the static units and the deploy
-script but deliberately does **not** restart the service — the running process
-keeps serving until the first release is deployed.
-
-```sh
-cd /home/ravik/src_git/project_stingray
-sudo SRC_DIR="$PWD" bash scripts/pi-bootstrap.sh
+sudo SRC_DIR=/path/to/temporary/checkout bash scripts/pi-bootstrap.sh
 /home/ravik/bin/stingray-deploy poll
 /home/ravik/bin/stingray-deploy status
 ```
 
-`/opt/stingray` is owned `ravik:monusr` with mode `2775`, so file operations need
-no sudo. The only sudo used by the deploy script is
-`/usr/bin/systemctl restart stingray.service`, already permitted by the narrow
-rule in `/etc/sudoers.d/stingray-deploy`.
-
-After the first successful deploy, remove the git checkout from the Pi.
+Bootstrap now both enables **and starts** the timers. The only sudo used by the
+deploy script is `/usr/bin/systemctl restart stingray.service`, permitted by the
+narrow rule in `/etc/sudoers.d/stingray-deploy`.
 
 ## Day-to-day commands (on the Pi)
 
@@ -80,7 +134,7 @@ are needed.
 
 ## Why a prebuilt venv
 
-The Pi is `aarch64` with Python 3.13 and has native wheels (`spidev`, `RPi.GPIO`,
+The Pi is `aarch64` with Python 3.13.5 and has native wheels (`spidev`, `RPi.GPIO`,
 `duckdb`, `pyarrow`, `pillow`) that cannot be produced on an x86 runner without
 emulation. Building the venv at its final path inside an arm64 container makes
 the deployed bits identical to the evaluated artifact; only `pyvenv.cfg`'s
@@ -92,7 +146,11 @@ the deployed bits identical to the evaluated artifact; only `pyvenv.cfg`'s
 - The release asset download must stay unauthenticated, so the GitHub repo must
   remain public. A private repo needs a read-only token on the Pi.
 - systemd unit content is static after bootstrap; releasing a new artifact does
-  not change unit files. Re-run bootstrap if a unit must change.
+  not change unit files. To change a unit on the Pi (for example the poll
+  interval), copy the updated file from `deploy/` in GitHub into
+  `/etc/systemd/system/`, then `sudo systemctl daemon-reload` and restart the
+  affected timer or service. The polling interval is currently
+  `OnCalendar=*:0/30`.
 - The `hardware` extra now includes `RPi.GPIO` (previously installed manually).
 - Release workflow and CI both use Python 3.13 to match the Pi.
 - Never run `scripts/validate_gas_sensors.py` while `stingray.service` is active.

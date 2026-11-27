@@ -9,10 +9,10 @@ operational reliability, and maintainable software.
 ## Supported hardware
 
 - Raspberry Pi 4 Model B Rev 1.1 (ARM64, Debian 13)
-- SPS30 particulate matter sensor
-- SCD4x CO2/temperature/RH sensor
-- SHT45 temperature/RH sensor
-- SGP41 VOC/NOx gas sensor
+- SPS30 particulate matter sensor (I²C `0x69`)
+- SCD4x CO₂/temperature/RH sensor (I²C `0x62`)
+- Combined SHT45 + SGP41 **2-in-1 module** — temperature/RH at `0x44` and
+  VOC/NOx at `0x59` on one physical board
 - ILI9341 2.8-inch SPI display
 - DFRobot DFR0918 terminal-block HAT
 
@@ -33,17 +33,14 @@ uv run stingray        # run the application (mock mode by default)
 
 ## Deployment
 
-The application is deployed as a systemd service on the Pi. See
+GitHub builds one arm64 release and the Pi runs exactly that artifact from
+`/opt/stingray/current`. There is **no git checkout on the Pi**; a timer polls
+for new `v*` tags every 30 minutes with checksum verification and automatic
+rollback. See
+[`docs/deployment/release-and-deploy.md`](docs/deployment/release-and-deploy.md)
+for the release process, bootstrap, verification and rollback, and
 [`docs/deployment/systemd-service.md`](docs/deployment/systemd-service.md)
-for the full deployment guide, including:
-
-- Service user setup (`monusr`)
-- File ownership and permissions
-- Systemd unit file
-- Deployment steps
-- Operations (status, logs, restart, stop)
-- Updating the application
-- Troubleshooting
+for the service/unit reference and troubleshooting.
 
 ## Documentation
 
@@ -57,8 +54,10 @@ for the full deployment guide, including:
   of the original host
 - [`docs/DESIGN_AND_DECISIONS.md`](docs/DESIGN_AND_DECISIONS.md) — architecture,
   design rationale and progress
+- [`docs/deployment/release-and-deploy.md`](docs/deployment/release-and-deploy.md) —
+  release process, Pi auto-deploy and rollback
 - [`docs/deployment/systemd-service.md`](docs/deployment/systemd-service.md) —
-  service reference
+  service/unit reference and troubleshooting
 - [`docs/deployment/hourly-summary.md`](docs/deployment/hourly-summary.md) —
   LLM summary, Telegram formatting and refresh cooldown
 

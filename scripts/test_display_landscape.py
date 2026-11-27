@@ -4,7 +4,7 @@
 import sys
 import time
 
-sys.path.insert(0, "/home/ravik/src_git/project_stingray/src")
+sys.path.insert(0, "/opt/stingray/current/src")
 
 from stingray.display.driver import ILI9341Driver
 from stingray.display.colors import (

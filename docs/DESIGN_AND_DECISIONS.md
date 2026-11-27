@@ -80,6 +80,7 @@ storage and in-memory health only.
 | Decision | Rationale | Rejected alternative |
 |---|---|---|
 | Raspberry Pi 4 + real Sensirion sensors | Required sensor parity with the ESP32 reference plus durable disk storage | Keeping the ESP32 (history lived in RAM and was lost on reboot) |
+| One SHT45 + SGP41 **2-in-1 module** for temperature/RH and VOC/NOx | One physical board supplies full climate + gas coverage; SHT45 compensates the SGP41 on the same module. It exposes two I²C addresses (`0x44`, `0x59`) and is documented as one module / two logical streams alongside the separate SCD4X and SPS30 | Treating the two chips as two separately procured modules, or dropping gas compensation |
 | Parquet on SSD, queried by DuckDB | Cheap columnar analytics, compression, partition pruning; history survives reboot | SQLite (`database.path`/`wal_mode` keys removed); storing on microSD or `/tmp` |
 | `mode: hardware` on the Pi; mock only in tests | Production must never serve synthetic data | Mock mode on the running host |
 | Docker-free stdlib `ThreadingHTTPServer` | No container runtime needed on a 2 GB Pi; simple deployment as a systemd service | A framework server with extra dependencies |
@@ -104,6 +105,7 @@ storage and in-memory health only.
 | Tag-driven GitHub Release with a prebuilt arm64 venv, auto-deployed by a Pi timer | GitHub is the only source of truth; the exact evaluated artifact runs on the Pi and the Pi needs no git repo | Git pull on the Pi, or resolving/compiling dependencies on the Pi |
 | Immutable release directories + `current` symlink, last 3 kept | Atomic cutover and automatic rollback without touching `/mnt/stingray` data | In-place updates that cannot be undone |
 | Evaluate builds with a dry-run dispatch before any tag or Pi change | Build time and artifact contents are verified on GitHub first, as requested | Publishing a release or touching the Pi before evaluation |
+| Pi polls GitHub Releases every 30 minutes (`OnCalendar=*:0/30`) | 10-minute polling was unnecessarily aggressive for a manual release flow; 30 minutes keeps auto-deploy prompt without repeated API calls | 10-minute interval; polling on every main push |
 
 ---
 

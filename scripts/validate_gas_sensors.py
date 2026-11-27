@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Standalone 1 Hz validation for the combined SHT4x + SGP41 module.
 
-Run on the Raspberry Pi with the hardware virtualenv::
+Run on the Raspberry Pi with the deployed release virtualenv. This diagnostic
+is not bundled in the release tarball; copy it from GitHub to a temporary path
+on the Pi first, and stop stingray.service before running it::
 
-    cd /home/ravik/src_git/project_stingray
-    .venv/bin/python scripts/validate_gas_sensors.py
+    /opt/stingray/current/.venv/bin/python /tmp/validate_gas_sensors.py
 
 Add ``--seconds 1800`` for a timed 30-minute run. Ctrl-C exits cleanly.
 

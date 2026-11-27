@@ -1,97 +1,84 @@
-# Stingray Systemd Service — Deployment Guide
+# Stingray systemd service reference
 
-This document describes how the stingray application is packaged and deployed
-as a systemd service on the Raspberry Pi (`stingray` host).
+> **Current model (2026-11-27):** the Pi has **no git checkout**. GitHub builds
+> one arm64 release and the Pi runs exactly that artifact from
+> `/opt/stingray/current` → `/opt/stingray/releases/<version>`. For building,
+> releasing, bootstrapping and rollback see
+> [`release-and-deploy.md`](release-and-deploy.md). This document describes the
+> host prerequisites, the installed units, operations and troubleshooting.
 
-## Overview
+## What runs where
 
-The stingray application runs as a systemd service managed by `monusr`, an
-unprivileged system user. The service:
+| Path | Owner | Contents |
+|---|---|---|
+| `/opt/stingray/releases/<version>/` | `ravik:monusr`, `2775` | Immutable release: app, config, units, complete venv |
+| `/opt/stingray/current` | symlink | Points at the active release; every unit uses this path |
+| `/opt/stingray/downloads` | `ravik:monusr` | Downloaded tarballs and checksums |
+| `/mnt/stingray` | `monusr` | Parquet data and summaries — **never** in a release |
+| `/etc/stingray/telegram.env` | `root:root`, `0600` | Credentials, injected by systemd drop-ins |
+| `/home/ravik/bin/stingray-deploy` | `ravik` | Poll/install/rollback/status/verify command |
 
-- Starts automatically on boot
-- Auto-restarts on failure (capped at 5 restarts per 60 seconds)
-- Logs to the systemd journal (no separate log file)
-- Runs with minimal privileges (no root, no sandbox restrictions)
+Nothing on the Pi is built, compiled or dependency-resolved. The release tarball
+contains `src/`, `config/`, `deploy/`, and a self-contained `.venv` built for
+`aarch64` with Python 3.13.5 and the `hardware` extra (`smbus2`, `spidev`,
+`RPi.GPIO`).
 
-## Prerequisites
+## One-time host prerequisites
 
-Before deploying the service, ensure the following are in place on the Pi:
+These were installed at cutover and do not change with a release. They are
+listed here for disaster recovery of a fresh host.
 
-1. **I2C enabled** in `/boot/firmware/config.txt`:
-   ```
+1. **Enable buses** in `/boot/firmware/config.txt`:
+
+   ```ini
    dtparam=i2c_arm=on
-   ```
-
-2. **SPI enabled** in `/boot/firmware/config.txt`:
-   ```
    dtparam=spi=on
    ```
 
-3. **I2C kernel module loads at boot** via `/etc/modules-load.d/i2c-dev.conf`:
-   ```
-   i2c-dev
-   ```
+   Load `i2c-dev` at boot via `/etc/modules-load.d/i2c-dev.conf`, then reboot
+   and confirm `/dev/i2c-1`, `/dev/spidev0.0` and `/dev/spidev0.1` exist.
 
-4. **Python dependencies installed**:
+2. **Create the service user** with only the bus groups it needs:
+
    ```sh
-   cd /home/ravik/src_git/project_stingray
-   uv sync --extra hardware
-   uv pip install RPi.GPIO
+   sudo useradd --system --no-create-home --shell /usr/sbin/nologin monusr
+   sudo usermod -aG i2c,spi,gpio monusr
    ```
 
-5. **DejaVu fonts installed** (for the TFT display):
+   | Group | Purpose |
+   |---|---|
+   | `i2c` | `/dev/i2c-1` — sensor bus |
+   | `spi` | `/dev/spidev0.0` — TFT display |
+   | `gpio` | `/dev/mem` via `RPi.GPIO` — display control pins |
+
+3. **Create host-owned directories:**
+
    ```sh
-   sudo apt install -y fonts-dejavu-core
+   sudo mkdir -p /var/log/stingray
+   sudo chown monusr:monusr /var/log/stingray
    ```
 
-## Service User
+4. **Install fonts** for the TFT: `sudo apt install -y fonts-dejavu-core`.
 
-The service runs as `monusr`, a dedicated system user with no login shell.
+5. **Install the units and deploy command** by running
+   `scripts/pi-bootstrap.sh` with sudo from a temporary GitHub checkout (the
+   Pi normally keeps no checkout). Bootstrap creates `/opt/stingray`, installs
+   the units, and enables **and starts** the timers without restarting the
+   running service.
 
-### Creating the user
+6. **Narrow sudoers rule** in `/etc/sudoers.d/stingray-deploy` permits only
+   `/usr/bin/systemctl restart stingray.service` without a password. Bootstrap
+   itself needs full sudo and must be run interactively.
 
-```sh
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin monusr
-sudo usermod -aG i2c,spi,gpio monusr
-```
+## Installed units
 
-### Required groups
-
-| Group | Purpose |
+| Unit | Purpose |
 |---|---|
-| `i2c` | Access to `/dev/i2c-1` (sensor bus) |
-| `spi` | Access to `/dev/spidev0.0` (display) |
-| `gpio` | Access to `/dev/mem` via RPi.GPIO (display control pins) |
+| `stingray.service` | Main application; runs as `monusr`, restarts on failure |
+| `stingray-hourly-summary.timer` / `.service` | Hourly local-LLM summary and Telegram delivery |
+| `stingray-deploy.timer` / `.service` | Polls GitHub Releases every 30 minutes |
 
-## File Ownership
-
-The service user must own the project directory and data directory:
-
-```sh
-sudo chown -R monusr:monusr /home/ravik/src_git/project_stingray
-sudo chown -R monusr:monusr /mnt/stingray
-```
-
-The parent directories must be traversable by `monusr`:
-
-```sh
-sudo chmod o+rx /home/ravik
-sudo chmod o+rx /home/ravik/src_git
-```
-
-## Log Directory
-
-The application writes logs to `/var/log/stingray` (configured in
-`application.combined.yaml`). Create the directory and set ownership:
-
-```sh
-sudo mkdir -p /var/log/stingray
-sudo chown monusr:monusr /var/log/stingray
-```
-
-## Systemd Unit File
-
-Location: `/etc/systemd/system/stingray.service`
+`stingray.service` (canonical source: `deploy/stingray.service` in the release):
 
 ```ini
 [Unit]
@@ -103,8 +90,9 @@ StartLimitIntervalSec=60
 
 [Service]
 User=monusr
-WorkingDirectory=/home/ravik/src_git/project_stingray
-ExecStart=/home/ravik/src_git/project_stingray/.venv/bin/python -m stingray.main --config /home/ravik/src_git/project_stingray/config/application.combined.yaml
+Group=monusr
+WorkingDirectory=/opt/stingray/current
+ExecStart=/opt/stingray/current/.venv/bin/python -m stingray.main --config /opt/stingray/current/config/application.combined.yaml
 Restart=on-failure
 RestartSec=5
 Environment=PATH=/home/ravik/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -116,298 +104,120 @@ SyslogIdentifier=stingray
 [Install]
 WantedBy=multi-user.target
 ```
-
-For the dashboard's on-demand summary button to send Telegram messages, add a
-drop-in rather than making the credentials file readable by `monusr`:
-
-```sh
-sudo install -d -m 0755 /etc/systemd/system/stingray.service.d
-sudo install -m 0644 /home/ravik/src_git/project_stingray/deploy/stingray-telegram.conf \
-  /etc/systemd/system/stingray.service.d/telegram.conf
-sudo systemctl daemon-reload
-sudo systemctl restart stingray.service
-```
-
-See `docs/deployment/hourly-summary.md` for the credentials file itself.
-
-### Key settings
 
 | Setting | Value | Purpose |
 |---|---|---|
-| `User` | `monusr` | Run as unprivileged user |
-| `WorkingDirectory` | project root | Relative paths resolve correctly |
-| `ExecStart` | venv python + module | Uses the project's virtual environment |
-| `Restart` | `on-failure` | Auto-recover from crashes |
-| `RestartSec` | `5` | Wait 5s before restarting |
-| `StartLimitBurst` | `5` | Max 5 restarts... |
-| `StartLimitIntervalSec` | `60` | ...per 60 seconds |
-| `PYTHONUNBUFFERED` | `1` | Log to journal immediately |
-| `StandardOutput/Error` | `journal` | All output goes to systemd journal |
+| `User` / `Group` | `monusr` | Unprivileged execution |
+| `WorkingDirectory` | `/opt/stingray/current` | Relative paths resolve inside the active release |
+| `Restart` / `RestartSec` | `on-failure` / `5` | Auto-recover from crashes |
+| `StartLimitBurst` / `StartLimitIntervalSec` | `5` / `60` | Cap restart storms |
+| `PYTHONUNBUFFERED` | `1` | Immediate journal output |
 
-## Deployment Steps
+The summary unit also uses `/opt/stingray/current/.venv/bin/python` and
+`/opt/stingray/current/config/application.combined.yaml`.
 
-Execute these steps on the Pi in order:
+## Telegram credentials
 
-```sh
-# 1. Create the service user
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin monusr
-sudo usermod -aG i2c,spi,gpio monusr
+Credentials are never stored in the repository, release tarball, config file,
+summary files or logs. The service reads them only from `/etc/stingray/telegram.env`
+(root-owned, `0600`). Because `monusr` cannot read that file, a systemd drop-in
+at `/etc/systemd/system/stingray.service.d/telegram.conf` injects the variables.
+Bootstrap preserves an existing drop-in and installs the one from
+`/opt/stingray/current/deploy/stingray-telegram.conf` only if missing. Both the
+hourly summary service and the dashboard's **Generate now** button need it.
 
-# 2. Set file ownership
-sudo chown -R monusr:monusr /home/ravik/src_git/project_stingray
-sudo chown -R monusr:monusr /mnt/stingray
-sudo chmod o+rx /home/ravik
-sudo chmod o+rx /home/ravik/src_git
-
-# 3. Create the log directory
-sudo mkdir -p /var/log/stingray
-sudo chown monusr:monusr /var/log/stingray
-
-# 4. Write the systemd unit file
-sudo tee /etc/systemd/system/stingray.service << 'EOF'
-[Unit]
-Description=Stingray Air Quality Monitor
-After=network.target
-Wants=network-online.target
-StartLimitBurst=5
-StartLimitIntervalSec=60
-
-[Service]
-User=monusr
-WorkingDirectory=/home/ravik/src_git/project_stingray
-ExecStart=/home/ravik/src_git/project_stingray/.venv/bin/python -m stingray.main --config /home/ravik/src_git/project_stingray/config/application.combined.yaml
-Restart=on-failure
-RestartSec=5
-Environment=PATH=/home/ravik/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=PYTHONUNBUFFERED=1
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=stingray
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 5. Ensure I2C module loads at boot
-sudo tee /etc/modules-load.d/i2c-dev.conf << 'EOF'
-i2c-dev
-EOF
-
-# 6. Kill any existing manual process
-pkill -f '[s]tingray.main'
-
-# 7. Reload systemd and enable the service
-sudo systemctl daemon-reload
-sudo systemctl enable stingray
-
-# 8. Start the service
-sudo systemctl start stingray
-
-# 9. Verify
-systemctl status stingray
-```
+See [`hourly-summary.md`](hourly-summary.md) for the env var names and delivery
+details.
 
 ## Operations
 
-### Check status
-
 ```sh
-systemctl status stingray
+systemctl status stingray.service                     # state and recent logs
+journalctl -u stingray.service -f                     # follow logs
+journalctl -u stingray.service --since "1 hour ago"
+sudo systemctl restart stingray.service               # also done by a deploy
+systemctl list-timers --all | grep stingray
+/home/ravik/bin/stingray-deploy status                # version, sha, service state
 ```
 
-### View logs
+## Updating the application
+
+Push a `v*` tag on `pathfinder` after evaluating the build on GitHub. The Pi
+polls within 30 minutes, or force a check:
 
 ```sh
-# Live logs (follow)
-journalctl -u stingray -f
-
-# Last 50 lines
-journalctl -u stingray --no-pager -n 50
-
-# Logs from the last hour
-journalctl -u stingray --since "1 hour ago"
-
-# Logs since the last boot
-journalctl -u stingray --boot
+/home/ravik/bin/stingray-deploy poll
+/home/ravik/bin/stingray-deploy status
+curl -fsS http://127.0.0.1:8081/api/health | jq
 ```
 
-### Restart
+A deploy verifies SHA256, flips `/opt/stingray/current`, restarts the service and
+waits for `/api/health`; it rolls back automatically on failure. Manual rollback:
 
 ```sh
-sudo systemctl restart stingray
+/home/ravik/bin/stingray-deploy rollback
 ```
 
-### Stop
+Only the three newest release directories are kept. Never run git commands or
+`uv sync` on the Pi.
+
+## Validating the combined SHT45 + SGP41 module
+
+The SHT45 (temperature/RH at `0x44`) and SGP41 (VOC/NOx at `0x59`) are **one
+physical 2-in-1 module** on a single board with two I²C addresses. It shares the
+bus with the separate SCD4X (`0x62`) and SPS30 (`0x69`) modules. The SHT45 is the
+authoritative T/RH source and compensates the SGP41 gas readings on the same
+board.
+
+**Stop the service first** — two processes issuing command-then-read
+transactions on the same bus interleave and produce spurious `EIO` errors. The
+validator is a diagnostic script and is not bundled in the release tarball; copy
+it from GitHub to a temporary path on the Pi:
 
 ```sh
-sudo systemctl stop stingray
+sudo systemctl stop stingray.service
+/opt/stingray/current/.venv/bin/python /tmp/validate_gas_sensors.py --seconds 1800
+sudo systemctl start stingray.service
 ```
 
-### Disable (prevent auto-start on boot)
+Expected startup sequence: serial/self-test (`SGP41 self-test=0xD400`), then
+`SHT4x: ONLINE` and `SGP41: ONLINE`, 10 conditioning cycles, raw VOC/NOx values
+with indices still `WARM`, then `READY` with integer indices in 1–500. The gas
+indices come from a pure-Python port of Sensirion's Gas Index Algorithm v3.2.0,
+not from raw signals; if the SHT45 is unavailable the SGP41 falls back to
+datasheet defaults (25 °C / 50 %RH).
 
-```sh
-sudo systemctl disable stingray
-```
+## Metrics notes
 
-### Re-enable
-
-```sh
-sudo systemctl enable stingray
-```
-
-### Check resource usage
-
-```sh
-systemctl status stingray   # shows CPU, memory, task count
-```
-
-## Updating the Application
-
-To deploy a new version:
-
-```sh
-# 1. Pull the latest code
-cd /home/ravik/src_git/project_stingray
-git pull
-
-# 2. Sync dependencies (if pyproject.toml changed)
-uv sync --extra hardware
-
-# 3. Restart the service
-sudo systemctl restart stingray
-
-# 4. Verify
-systemctl status stingray
-journalctl -u stingray --no-pager -n 20
-```
-
-## Validating the SHT4x + SGP41 module
-
-The combined SHT4x (T/RH) and SGP41 (VOC/NOx) module shares the I2C bus with
-the SPS30 and SCD4X. Use the standalone script when bringing up or replacing
-the module. **Stop the service first**: two processes issuing command-then-read
-transactions on the same bus interleave and produce spurious `EIO` errors.
-
-```sh
-sudo systemctl stop stingray
-cd /home/ravik/src_git/project_stingray
-.venv/bin/python scripts/validate_gas_sensors.py --seconds 1800
-sudo systemctl start stingray
-```
-
-The script refreshes once per second and prints, for every cycle, both sensor
-ONLINE states, temperature, humidity, raw VOC/NOx, VOC/NOx index, compensation
-source, and status. Expected startup sequence:
-
-1. Serial and self-test checks (`SGP41 self-test=0xD400`), then `SHT4x: ONLINE`
-   and `SGP41: ONLINE`.
-2. 10 one-second conditioning cycles (`Status: CONDITIONING (n/10)`).
-3. Raw VOC/NOx readings appear; indices stay `WARM` for the gas algorithm's
-   initial 45-sample learning period.
-4. `Status: READY` with integer VOC/NOx indices in the 1–500 range.
-
-The gas indices are *not* the raw signals. They come from a pure-Python port of
-Sensirion's Gas Index Algorithm v3.2.0 (`stingray/sensors/gas_index.py`)
-validated against the official VOC test vectors. T/RH compensation comes from
-the SHT4x; if that sensor is unavailable the SGP41 falls back to the datasheet
-defaults (25 °C / 50 %RH).
-
-The application config sets both `sht45` and `sgp41` to a 1-second cadence;
-SPS30 (10 s) and SCD4X (5 s) are unchanged.
-
-## TPS and network information
-
-The SPS30's tenth measurement word — *typical particle size* (TPS, µm) — is
-now published as the `tps_um` metric at 10-second cadence. The uint16 field is
-in **nm** per the SPS30 datasheet (the float field is in µm), so the driver
-divides the raw word by 1000 to publish µm; a raw value of 566 becomes
-0.566 µm. It appears in `/api/live`, as a card on the web dashboard, in the
-history selector, and as the TPS tile on the TFT (whose unit has been corrected
-from kPa to µm).
-
-`/api/live` also returns a `network` object with the active WiFi interface,
-its IP address and the signal level in dBm. It is derived with standard
-library calls (`SIOCGIFADDR` and `/proc/net/wireless`); no SSID, password, MAC
-address or route is exposed. The web dashboard shows these under **System**,
-and the TFT footer uses the signal level for its existing RSSI field.
+- SPS30 typical particle size uses the uint16 field, which is in **nm**; the
+  driver divides by 1000 to publish `tps_um` in µm (raw 566 → 0.566 µm).
+- `/api/live` includes a `network` object with active WiFi interface, IP and
+  RSSI (dBm) from standard library calls; no SSID, password, MAC or route is
+  exposed.
 
 ## Troubleshooting
 
-### Service fails to start
-
 ```sh
-# Check the journal for error details
-journalctl -u stingray --no-pager -n 50
-
-# Common causes:
-# - Missing I2C module: sudo modprobe i2c-dev
-# - Missing dependencies: uv sync --extra hardware
-# - Permission denied: check file ownership and group membership
-# - Port already in use: check if another process is on port 8081
+journalctl -u stingray.service --no-pager -n 50
+curl -fsS http://127.0.0.1:8081/api/health | jq
+sudo i2cdetect -y 1          # expect 44, 59, 62, 69 on bus 1
+/home/ravik/bin/stingray-deploy status
 ```
 
-### Display not initializing
+| Symptom | Check |
+|---|---|
+| Service will not start | Journal; device nodes; port 8081 in use; then redeploy a known-good release |
+| Sensor errors | `i2cdetect` addresses; bus groups for `monusr`; never run two I²C readers at once |
+| Display not initializing | SPI enabled; fonts installed; `monusr` in `gpio`; journal grep `display` |
+| Restart loop | `journalctl -u stingray.service -n 100`; `sudo systemctl reset-failed stingray.service` then start |
+| Deploy rolled back | Checksum/network; `/api/health`; fix forward with a new tag, never re-tag |
 
-```sh
-# Check the journal for display errors
-journalctl -u stingray --no-pager | grep -i display
+## Security notes
 
-# Common causes:
-# - SPI not enabled: check /boot/firmware/config.txt
-# - Missing RPi.GPIO: uv pip install RPi.GPIO
-# - Missing fonts: sudo apt install -y fonts-dejavu-core
-# - GPIO access denied: check monusr is in the gpio group
-```
-
-### Sensors not detected
-
-```sh
-# Check the journal for sensor errors
-journalctl -u stingray --no-pager | grep -i sensor
-
-# Verify I2C devices are visible
-sudo i2cdetect -y 1
-
-# Expected addresses:
-# - SPS30: 0x69
-# - SCD4X: 0x62
-# - SHT45: 0x44
-# - SGP41: 0x59
-```
-
-### Service restart loop
-
-If the service is stuck in a restart loop:
-
-```sh
-# Stop the service
-sudo systemctl stop stingray
-
-# Check the journal for the root cause
-journalctl -u stingray --no-pager -n 100
-
-# Fix the issue, then reset the failure counter and restart
-sudo systemctl reset-failed stingray
-sudo systemctl start stingray
-```
-
-## Security Notes
-
-- The service runs as `monusr`, not root
-- `monusr` has no login shell and no home directory
-- The service has no sandbox restrictions (no `ProtectSystem`, `PrivateTmp`, etc.)
-  because the application needs access to `/home`, `/mnt`, and device nodes
-- For a more hardened deployment, consider:
-  - Moving the project to `/opt/stingray`
-  - Adding `ProtectSystem=full` and `ReadWritePaths=` for specific directories
-  - Adding `NoNewPrivileges=true`
-  - Adding `MemoryMax=512M`
-
-## Future Improvements
-
-- [ ] Move project to `/opt/stingray` for cleaner separation
-- [ ] Add `ProtectSystem=full` and `ReadWritePaths=` for sandboxing
-- [ ] Add a health check service that curls the API
-- [ ] Add log rotation if moving off journal
-- [ ] Create a `.deb` package for cleaner deployment
-- [ ] Add `uv tool install` as an alternative to the project venv
+- The service runs as `monusr`, not root; `monusr` has no login shell or home.
+- No sandbox hardening (`ProtectSystem`, `PrivateTmp`) is applied because the
+  app needs `/mnt`, device nodes and the release tree.
+- Credentials stay root-owned outside the release; the deploy command needs no
+  sudo except the narrow service restart.
+- Future hardening candidates: `ProtectSystem=full` with explicit
+  `ReadWritePaths=`, `NoNewPrivileges=true`, `MemoryMax=512M`.

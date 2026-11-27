@@ -130,9 +130,9 @@ Items that have since changed on the running Pi:
 |---|---|---|
 | I²C | disabled, no `/dev/i2c-*` | enabled: `dtparam=i2c_arm=on`, `i2c-dev` loaded, `/dev/i2c-1` present |
 | SPI | disabled, no `/dev/spidev*` | enabled: `dtparam=spi=on`, `/dev/spidev0.0` and `/dev/spidev0.1` present |
-| Sensors | not connected at capture | SHT45 `0x44`, SCD4X `0x62` (SCD41), SGP41 `0x59`, SPS30 `0x69`, all on bus 1 |
+| Sensors | not connected at capture | Three modules on bus 1: SHT45 + SGP41 **2-in-1** (`0x44`, `0x59`), SCD4X (`0x62`, SCD41), SPS30 (`0x69`) |
 | Display | not assessed | ILI9341 on SPI0 CE0; DC BCM25 (pin 22), RESET BCM24 (pin 18) |
-| Services | none installed | `stingray.service`, `stingray-hourly-summary.timer/.service`, Ollama |
+| Services | none installed | `stingray.service`, `stingray-hourly-summary.timer/.service`, `stingray-deploy.timer/.service`, Ollama; no git checkout on the Pi |
 | Storage | SD card only | SSD mounted at `/mnt/stingray` for Parquet and summaries |
 
 The fan question is unchanged: no fan is attached, and the system is operated

@@ -31,12 +31,13 @@ the model prompt, the dashboard card, and the Telegram message.
 Ollama is installed as a localhost-only service (`127.0.0.1:11434`, no cloud
 fallback, no resident model). Both `qwen2.5:0.5b` and `smollm2:135m` are pulled.
 
-Install the timer:
+The units are installed by `scripts/pi-bootstrap.sh` during host provisioning.
+On a running release the same files are available under
+`/opt/stingray/current/deploy/` if they need to be reinstalled:
 
 ```sh
-cd /home/ravik/src_git/project_stingray
-sudo install -m 0644 deploy/stingray-hourly-summary.service /etc/systemd/system/
-sudo install -m 0644 deploy/stingray-hourly-summary.timer /etc/systemd/system/
+sudo install -m 0644 /opt/stingray/current/deploy/stingray-hourly-summary.service /etc/systemd/system/
+sudo install -m 0644 /opt/stingray/current/deploy/stingray-hourly-summary.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now stingray-hourly-summary.timer
 ```
@@ -73,10 +74,12 @@ Do not make the root-owned env file readable by `monusr`; use a systemd drop-in
 instead. systemd reads the file as root and injects the variables into the
 service process:
 
+Bootstrap installs this drop-in if it is missing. To reinstall it from a
+release:
+
 ```sh
-cd /home/ravik/src_git/project_stingray
 sudo install -d -m 0755 /etc/systemd/system/stingray.service.d
-sudo install -m 0644 deploy/stingray-telegram.conf /etc/systemd/system/stingray.service.d/telegram.conf
+sudo install -m 0644 /opt/stingray/current/deploy/stingray-telegram.conf /etc/systemd/system/stingray.service.d/telegram.conf
 sudo systemctl daemon-reload
 sudo systemctl restart stingray.service
 ```
@@ -147,14 +150,17 @@ was removed after the cutover on 2026-11-27.
 ## Manual runs
 
 ```sh
+PY=/opt/stingray/current/.venv/bin/python
+CFG=/opt/stingray/current/config/application.combined.yaml
+
 # Safe manual run; writes a summary but does not send Telegram.
-.venv/bin/python -m stingray.summary_job --config config/application.combined.yaml --no-telegram
+$PY -m stingray.summary_job --config $CFG --no-telegram
 
 # Compare both models on one real Parquet window; writes and sends nothing.
-.venv/bin/python -m stingray.summary_job --config config/application.combined.yaml --benchmark
+$PY -m stingray.summary_job --config $CFG --benchmark
 
 # Dry run with a specific model.
-.venv/bin/python -m stingray.summary_job --config config/application.combined.yaml \
+$PY -m stingray.summary_job --config $CFG \
   --model smollm2:135m --dry-run --no-telegram
 ```
 

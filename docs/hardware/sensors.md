@@ -1,7 +1,9 @@
 # Project Stingray — Sensor Details
 
-This document describes the four physical sensors, how the drivers talk to
-them, what units they publish, and which warm-up/validation rules apply. All
+This document describes the three physical sensor modules — the combined
+SHT45 + SGP41 2-in-1 board plus SCD4X and SPS30 — the four logical drivers they
+expose, how those drivers talk to the devices, what units they publish, and
+which warm-up/validation rules apply. All
 facts here are taken from the driver sources in `src/stingray/sensors/` and from
 live probes on the Pi. See [`wiring.md`](wiring.md) for the electrical
 connections and [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) for the full build.
@@ -17,8 +19,15 @@ connections and [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) for the full build.
 | SGP41 | VOC index, NOx index | `0x59` | 1 s | I²C1 | `src/stingray/sensors/sgp41.py` |
 | SPS30 | PM1/PM2.5/PM4/PM10 mass, number concentrations, typical size | `0x69` | 10 s | I²C1 | `src/stingray/sensors/sps30.py` |
 
+The SHT45 and SGP41 are **one physical 2-in-1 module** on a single board, with
+two hard-wired I²C addresses (`0x44` and `0x59`). It is wired and powered as one
+device but appears as two logical sensors in the scheduler, storage and health
+report. SCD4X and SPS30 are separate modules: three physical modules, four
+logical sensor streams in total.
+
 The SHT45 is the **authoritative** temperature/humidity source. Its readings
-are also used internally to compensate the SGP41 gas measurements.
+are also used internally to compensate the SGP41 gas measurements on the same
+module.
 
 Each driver implements the same `SensorDriver` contract: `initialize()`,
 `read()`, `health()`, `close()`. A single `read()` may emit several

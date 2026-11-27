@@ -61,15 +61,17 @@ wiring reference.
 
 ### I²C — `/dev/i2c-1`
 
-All four sensors share one bus. Addresses are hard-wired in the sensors and are
-confirmed by the committed config `config/application.combined.yaml`:
+Three physical modules expose four I²C devices on one shared bus. The SHT45 and
+SGP41 live on the **same 2-in-1 board** but have separate hard-wired addresses;
+SCD4X and SPS30 are separate modules. Addresses are confirmed by the committed
+config `config/application.combined.yaml`:
 
-| Sensor | 7-bit address | Decimal | Cadence | Config key |
-|---|---|---|---|---|
-| SHT45 | `0x44` | 68 | 1 s | `sensors.sht45` |
-| SCD4X (SCD41 verified) | `0x62` | 98 | 5 s | `sensors.scd4x` |
-| SGP41 | `0x59` | 89 | 1 s | `sensors.sgp41` |
-| SPS30 | `0x69` | 105 | 10 s | `sensors.sps30` |
+| Physical module | Logical driver | 7-bit address | Decimal | Cadence | Config key |
+|---|---|---|---|---|---|
+| SHT45 + SGP41 2-in-1 | SHT45 | `0x44` | 68 | 1 s | `sensors.sht45` |
+| SHT45 + SGP41 2-in-1 | SGP41 | `0x59` | 89 | 1 s | `sensors.sgp41` |
+| SCD4X (SCD41 verified) | SCD4X | `0x62` | 98 | 5 s | `sensors.scd4x` |
+| SPS30 | SPS30 | `0x69` | 105 | 10 s | `sensors.sps30` |
 
 There are no address conflicts, so every device can sit on the same SDA/SCL
 pair. `/dev/i2c-20` and `/dev/i2c-21` also exist on this host but are HDMI DDC
@@ -103,7 +105,7 @@ SPI0, CE0, mode 0, 10 MHz. Only the ILI9341 display uses SPI. The driver opens
 
 ## 3. Logical connections
 
-### All I²C sensors (SHT45, SCD4X, SGP41, SPS30)
+### All I²C devices (SHT45 + SGP41 2-in-1 module, SCD4X, SPS30)
 
 | Sensor pin | Goes to | Pi pin |
 |---|---|---|
@@ -207,7 +209,8 @@ bash scripts/preflight.sh
 uv run python scripts/probe_i2c.py        # serials, firmware, live samples, CRCs
 ```
 
-Then start the service and check the journal for all four sensors `READY`:
+Then start the service and check the journal for all four logical sensor streams
+`READY` (SHT45 and SGP41 are the two streams of the one 2-in-1 module):
 
 ```sh
 sudo systemctl restart stingray.service
