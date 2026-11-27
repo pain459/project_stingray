@@ -51,12 +51,12 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
     scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
     assert scripts == [
         "js/store.js?v=2",
-        "js/chart.js?v=7",
-        "js/history.js?v=12",
-        "js/live.js?v=12",
+        "js/chart.js?v=8",
+        "js/history.js?v=13",
+        "js/live.js?v=13",
         "js/summary.js?v=11",
         "js/deploy.js?v=3",
-        "js/app.js?v=11",
+        "js/app.js?v=12",
     ]
 
 
@@ -70,3 +70,34 @@ def test_deploy_panel_has_read_only_update_check() -> None:
     assert "api.github.com/repos/pain459/project_stingray/releases/latest" in deploy
     assert "window.checkDeployUpdates = checkUpdates" in deploy
     assert "deployCheck" in deploy
+
+
+def test_clock_is_browser_local() -> None:
+    app = _js("app.js")
+    live = _js("live.js")
+    assert "window.setInterval(updateClock, 1000)" in app
+    assert "toLocaleTimeString([], TIME_FORMAT)" in app
+    assert "setText('dt'" not in live
+    assert "'Device time: '" in live
+
+
+def test_refresh_writes_only_changed_text() -> None:
+    live = _js("live.js")
+    history = _js("history.js")
+    assert "if (el.textContent !== next)" in live
+    assert "if (el.className !== className)" in live
+    assert "if (el.textContent !== next)" in history
+
+
+def test_chart_uses_double_buffer() -> None:
+    chart = _js("chart.js")
+    assert "document.createElement('canvas')" in chart
+    assert "if (canvas.width !== w || canvas.height !== h)" in chart
+    assert "visible.drawImage(buffer, 0, 0)" in chart
+
+
+def test_neon_logo_replaces_letter_and_gradients_are_removed() -> None:
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    css = (_STATIC / "css/main.css").read_text(encoding="utf-8")
+    assert 'src="assets/stingray-logo.png"' in html
+    assert "gradient(" not in css

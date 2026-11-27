@@ -13,6 +13,9 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  // Draw offscreen and blit once so a refresh never exposes a blank canvas.
+  const buffer = document.createElement('canvas');
+  const bufferCtx = buffer.getContext('2d');
 
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#667085';
@@ -74,10 +77,22 @@
     if (!canvas) return;
     const wrap = canvas.parentElement;
     const dpr = window.devicePixelRatio || 1;
-    const w = canvas.width = wrap.offsetWidth * dpr;
-    const h = canvas.height = wrap.offsetHeight * dpr;
-    const ctx = canvas.getContext('2d');
+    const w = Math.max(1, Math.round(wrap.offsetWidth * dpr));
+    const h = Math.max(1, Math.round(wrap.offsetHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    buffer.width = w;
+    buffer.height = h;
+    const ctx = bufferCtx;
     ctx.clearRect(0, 0, w, h);
+
+    function present() {
+      const visible = canvas.getContext('2d');
+      visible.clearRect(0, 0, w, h);
+      visible.drawImage(buffer, 0, 0);
+    }
 
     const pts = getVisibleSamples();
     if (pts.length < 2) {
@@ -85,6 +100,7 @@
       ctx.font = '14px system-ui';
       ctx.textAlign = 'center';
       ctx.fillText(H.error || 'No data yet', w / 2, h / 2);
+      present();
       return;
     }
 
@@ -175,6 +191,7 @@
       ctx.fillStyle = cssVar('--accent'); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.stroke();
     }
+    present();
   }
 
   function showTooltip(clientX, clientY, epoch, value) {

@@ -11,6 +11,13 @@
   const $ = id => document.getElementById(id);
   let lastRevision = -1;
 
+  function setText(id, value) {
+    const el = $(id);
+    if (!el) return;
+    const next = value == null ? '' : String(value);
+    if (el.textContent !== next) el.textContent = next;
+  }
+
   const METRIC_META = {
     pm1_ug_m3: { label: 'PM1.0', unit: 'µg/m³', decimals: 1 },
     pm2_5_ug_m3: { label: 'PM2.5', unit: 'µg/m³', decimals: 1 },
@@ -60,22 +67,22 @@
     H.label = meta.label; H.unit = meta.unit; H.decimals = meta.decimals;
     const rangeLabel = H.hours <= 1 ? H.hours + ' hour' :
       H.hours < 24 ? H.hours + ' hours' : Math.round(H.hours / 24) + ' days';
-    $('historyTitle').textContent = H.label + ' — last ' + rangeLabel;
+    setText('historyTitle', H.label + ' — last ' + rangeLabel);
   }
 
   function updateHistoryStats() {
     const H = window.HIST;
     const s = H.stats;
     if (!s) {
-      $('hmin').textContent = '--'; $('havg').textContent = '--'; $('hmax').textContent = '--';
+      setText('hmin', '--'); setText('havg', '--'); setText('hmax', '--');
       return;
     }
-    $('hmin').textContent = window.fmtVal(s.min, H.decimals);
-    $('havg').textContent = window.fmtVal(s.avg, H.decimals);
-    $('hmax').textContent = window.fmtVal(s.max, H.decimals);
-    $('hminunit').textContent = H.unit;
-    $('havgunit').textContent = H.unit;
-    $('hmaxunit').textContent = H.unit;
+    setText('hmin', window.fmtVal(s.min, H.decimals));
+    setText('havg', window.fmtVal(s.avg, H.decimals));
+    setText('hmax', window.fmtVal(s.max, H.decimals));
+    setText('hminunit', H.unit);
+    setText('havgunit', H.unit);
+    setText('hmaxunit', H.unit);
   }
 
   function resetHistory() {
@@ -97,7 +104,7 @@
     const H = window.HIST;
     H.requestSeq++;
     const seq = H.requestSeq;
-    $('historyMeta').textContent = 'Loading history...';
+    setText('historyMeta', 'Loading history...');
     try {
       const entry = await window.DP.history(H.metric, H.hours);
       if (seq !== H.requestSeq) return;
@@ -111,12 +118,12 @@
       H.viewEnd = 1;
       updateHistoryStats();
       window.drawHistory();
-      $('historyMeta').textContent = H.samples.length + ' samples · ' + H.hours + 'h range';
+      setText('historyMeta', H.samples.length + ' samples · ' + H.hours + 'h range');
     } catch (e) {
       if (seq !== H.requestSeq) return;
       H.loaded = false;
       H.error = e.message;
-      $('historyMeta').textContent = 'History unavailable: ' + e.message;
+      setText('historyMeta', 'History unavailable: ' + e.message);
       window.drawHistory();
     }
   }
@@ -145,7 +152,7 @@
     H.stats = computeStats(H.samples);
     H.nextCursor = entry.next_cursor;
     updateHistoryStats();
-    $('historyMeta').textContent = H.samples.length + ' samples · ' + H.hours + 'h range · live';
+    setText('historyMeta', H.samples.length + ' samples · ' + H.hours + 'h range · live');
     window.drawHistory();
   }
 

@@ -13,7 +13,9 @@
 
   function setText(id, value) {
     const el = $(id);
-    if (el) el.textContent = value;
+    if (!el) return;
+    const next = value == null ? '' : String(value);
+    if (el.textContent !== next) el.textContent = next;
   }
 
   function fmtVal(v, dec) {
@@ -38,25 +40,27 @@
       const age = Number.isNaN(observed.getTime())
         ? ''
         : Math.max(0, Math.round((Date.now() - observed.getTime()) / 1000)) + 's ago';
-      el.title = 'Observed ' + observed.toLocaleString() + (age ? ' · ' + age : '');
-      if (el.dataset) el.dataset.observedAt = point.observed_at;
+      const title = 'Observed ' + observed.toLocaleString() + (age ? ' · ' + age : '');
+      if (el.title !== title) el.title = title;
+      if (el.dataset && el.dataset.observedAt !== point.observed_at) {
+        el.dataset.observedAt = point.observed_at;
+      }
     } else {
-      el.title = '';
-      if (el.dataset) delete el.dataset.observedAt;
+      if (el.title) el.title = '';
+      if (el.dataset && el.dataset.observedAt) delete el.dataset.observedAt;
     }
   }
 
   function setStat(id, state) {
     const el = $(id);
     if (!el) return;
-    if (!state) {
-      el.textContent = '--';
-      el.className = 'status';
-      return;
-    }
-    const s = state.state;
-    el.textContent = s === 'ready' ? 'Online' : s === 'degraded' ? 'Degraded' : String(s).toUpperCase();
-    el.className = 'status ' + (s === 'ready' ? 'good' : s === 'degraded' ? 'warn' : 'bad');
+    const s = state && state.state;
+    const text = !s ? '--' :
+      s === 'ready' ? 'Online' : s === 'degraded' ? 'Degraded' : String(s).toUpperCase();
+    const className = !s ? 'status' :
+      'status ' + (s === 'ready' ? 'good' : s === 'degraded' ? 'warn' : 'bad');
+    if (el.textContent !== text) el.textContent = text;
+    if (el.className !== className) el.className = className;
   }
 
   function statsTotal(system) {
@@ -114,10 +118,13 @@
     if (!system) return;
     setText('up', fmtUptime(system.uptime_seconds));
     setText('mode', system.mode || '--');
+    // #dt is the browser-local clock owned by app.js. Keep device time as a
+    // diagnostic tooltip only; never overwrite the visible local time.
+    const el = $('dt');
+    if (!el) return;
     const dt = new Date(system.time);
-    if (Number.isNaN(dt.getTime())) return;
-    setText('dt', dt.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) +
-      '  ' + dt.toLocaleTimeString([], { hour12: false }));
+    const title = Number.isNaN(dt.getTime()) ? '' : 'Device time: ' + dt.toLocaleString();
+    if (el.title !== title) el.title = title;
   }
 
   function render(state) {

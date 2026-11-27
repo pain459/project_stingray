@@ -8,6 +8,9 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  const DATE_FORMAT = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+  const TIME_FORMAT = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+  let clockTimer = null;
 
   // Default to dark mode
   document.documentElement.setAttribute('data-theme', 'dark');
@@ -24,10 +27,27 @@
 
   window.toggleTheme = toggleTheme;
 
+  /** Browser-local clock; independent of snapshot revisions and device time. */
+  function updateClock() {
+    const el = $('dt');
+    if (!el) return;
+    const now = new Date();
+    const next = now.toLocaleDateString([], DATE_FORMAT) + '  ' +
+      now.toLocaleTimeString([], TIME_FORMAT);
+    if (el.textContent !== next) el.textContent = next;
+  }
+
+  function startClock() {
+    updateClock();
+    if (clockTimer === null) clockTimer = window.setInterval(updateClock, 1000);
+    document.addEventListener('visibilitychange', updateClock);
+  }
+
   function start() {
     window.updateHistoryControls();
     window.setupChartInteractions();
     window.loadHistory();
+    startClock();
     // One store owns the single poll loop; widgets only subscribe to it.
     window.DP.start();
     window.addEventListener('resize', window.drawHistory);
