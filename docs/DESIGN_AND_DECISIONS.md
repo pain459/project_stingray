@@ -106,7 +106,7 @@ storage and in-memory health only.
 | Tag-driven GitHub Release with a prebuilt arm64 venv, auto-deployed by a Pi timer | GitHub is the only source of truth; the exact evaluated artifact runs on the Pi and the Pi needs no git repo | Git pull on the Pi, or resolving/compiling dependencies on the Pi |
 | Immutable release directories + `current` symlink, last 3 kept | Atomic cutover and automatic rollback without touching `/mnt/stingray` data | In-place updates that cannot be undone |
 | Evaluate builds with a dry-run dispatch before any tag or Pi change | Build time and artifact contents are verified on GitHub first, as requested | Publishing a release or touching the Pi before evaluation |
-| Pi polls GitHub Releases every 30 minutes (`OnCalendar=*:0/30`) | 10-minute polling was unnecessarily aggressive for a manual release flow; 30 minutes keeps auto-deploy prompt without repeated API calls | 10-minute interval; polling on every main push |
+| Pi polls GitHub Releases at :15 and :45 (`OnCalendar=*:15,45`) | Keeps the 30-minute maximum lag of the original `*:0/30` schedule but moves the release restart away from the top-of-hour hourly summary, so an LLM/Telegram run is never overlapped | 10-minute interval; `*:0/30` at :00; polling on every main push |
 | Webpage "Deploy latest" and "Force redeploy" trigger a one-shot systemd unit, not a child process of the API | A deploy restarts `stingray.service`, and systemd's cgroup kill mode would terminate any API-spawned worker mid-deploy | Running the CLI directly from the request handler or a background thread |
 | Two fixed unit instances with a narrow `monusr` sudoers rule and no dashboard auth | The CLI is privileged; fixed names prevent arbitrary unit starts, and the dashboard is for a trusted LAN | Token auth or an open sudo rule |
 
@@ -190,4 +190,4 @@ time-bounded (latest 2 h, count 24 h) and why bulk work happens on
   open items in [`hardware/wiring.md`](hardware/wiring.md).
 - **Deployment lag.** After pushing a release from `pathfinder`, confirm the
   deployed version with `/home/ravik/bin/stingray-deploy status` and the served
-  script cache version before judging a fix; the Pi polls every 30 minutes.
+  script cache version before judging a fix; the Pi polls at :15 and :45.

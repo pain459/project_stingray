@@ -31,7 +31,8 @@ host prerequisites, see [`systemd-service.md`](systemd-service.md).
    "re-tag or hand-edit the old asset".
 6. **Static units do not come from releases.** `stingray.service`, timers and
    sudoers drop-ins are installed once at bootstrap. Changing a release does not
-   change unit contents. The deploy poll interval is `OnCalendar=*:0/30`.
+   change unit contents. The deploy poll interval is `OnCalendar=*:15,45` (never
+  at :00, so the hourly summary and Telegram job are not overlapped).
 
 ### Connect
 

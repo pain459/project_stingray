@@ -2,7 +2,9 @@
 Description=Poll GitHub Releases for a new Stingray build
 
 [Timer]
-OnCalendar=*:0/30
+# :15/:45 keeps the 30-minute maximum lag without restarting the app at :00,
+# where the hourly summary and Telegram job run.
+OnCalendar=*:15,45
 AccuracySec=1min
 Persistent=true
 

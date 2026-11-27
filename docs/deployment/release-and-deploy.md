@@ -12,8 +12,9 @@ runs exactly that artifact**. The Pi no longer needs a git checkout. Data under
    - `stingray-<version>-arm64.tar.gz` — app, config, systemd units and a complete
      arm64 Python 3.13 venv with the `hardware` extra.
    - `stingray-<version>-arm64.tar.gz.sha256`.
-3. The Pi's `stingray-deploy.timer` polls the public GitHub Releases API every
-   30 minutes. On a new version it verifies the checksum, extracts the tarball
+3. The Pi's `stingray-deploy.timer` polls the public GitHub Releases API at 15
+   and 45 minutes past each hour (offset from the :00 hourly summary). On a new
+   version it verifies the checksum, extracts the tarball
    into `/opt/stingray/releases/<version>`, flips `/opt/stingray/current`,
    restarts `stingray.service`, waits for `/api/health`, and rolls back
    automatically if the service does not come up healthy.
@@ -83,7 +84,7 @@ All release work happens on `pathfinder`; the Pi is never a build host.
    gh release view v<version> --json assets
    ```
 
-5. **Verify on the Pi** (within 30 minutes automatically, or force it):
+5. **Verify on the Pi** (at the next :15/:45 poll, or force it):
 
    ```sh
    /home/ravik/bin/stingray-deploy poll
@@ -194,7 +195,7 @@ the deployed bits identical to the evaluated artifact; only `pyvenv.cfg`'s
   interval), copy the updated file from `deploy/` in GitHub into
   `/etc/systemd/system/`, then `sudo systemctl daemon-reload` and restart the
   affected timer or service. The polling interval is currently
-  `OnCalendar=*:0/30`.
+  `OnCalendar=*:15,45` (away from the hourly summary at `:00`).
 - The `hardware` extra now includes `RPi.GPIO` (previously installed manually).
 - Release workflow and CI both use Python 3.13 to match the Pi.
 - Never run `scripts/validate_gas_sensors.py` while `stingray.service` is active.

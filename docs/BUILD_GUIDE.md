@@ -340,7 +340,7 @@ sudo systemctl restart stingray.service
 # on pathfinder: bump version, evaluate a dry run, then tag
 git tag v0.2.0 && git push origin v0.2.0
 
-# on stingray: the timer picks it up within 30 minutes, or force a check
+# on stingray: the timer picks it up at :15/:45, or force a check
 /home/ravik/bin/stingray-deploy poll
 /home/ravik/bin/stingray-deploy status
 sudo journalctl -u stingray.service -n 20 --no-pager

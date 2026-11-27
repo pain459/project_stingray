@@ -76,7 +76,7 @@ listed here for disaster recovery of a fresh host.
 |---|---|
 | `stingray.service` | Main application; runs as `monusr`, restarts on failure |
 | `stingray-hourly-summary.timer` / `.service` | Hourly local-LLM summary and Telegram delivery |
-| `stingray-deploy.timer` / `.service` | Polls GitHub Releases every 30 minutes |
+| `stingray-deploy.timer` / `.service` | Polls GitHub Releases at :15 and :45, away from the :00 hourly summary |
 
 `stingray.service` (canonical source: `deploy/stingray.service` in the release):
 
@@ -143,7 +143,7 @@ systemctl list-timers --all | grep stingray
 ## Updating the application
 
 Push a `v*` tag on `pathfinder` after evaluating the build on GitHub. The Pi
-polls within 30 minutes, or force a check:
+polls at :15 and :45 (at most 30 minutes away), or force a check:
 
 ```sh
 /home/ravik/bin/stingray-deploy poll

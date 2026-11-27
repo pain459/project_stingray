@@ -48,7 +48,7 @@ Mock mode is for tests and development on `pathfinder` only. Production on
 
 GitHub builds one arm64 release and the Pi runs exactly that artifact from
 `/opt/stingray/current`. There is **no git checkout on the Pi**; a timer polls
-for new `v*` tags every 30 minutes with checksum verification and automatic
+for new `v*` tags at 15 and 45 minutes past each hour with checksum verification and automatic
 rollback. See
 [`docs/deployment/release-and-deploy.md`](docs/deployment/release-and-deploy.md)
 for the release process, bootstrap, verification and rollback, and
@@ -60,7 +60,7 @@ Development and release workflow:
 1. Make and push changes from this checkout on `pathfinder`.
 2. Evaluate a GitHub build dry run, then tag `v*` from this repository.
 3. GitHub builds the arm64 tarball + checksum and publishes the release.
-4. The Pi polls every 30 minutes, deploys the exact artifact and health-checks
+4. The Pi polls at :15 and :45, deploys the exact artifact and health-checks
    it, rolling back automatically on failure.
 
 Never develop, build or git-pull on the Pi.
