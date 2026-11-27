@@ -28,6 +28,7 @@ _ENV_OVERRIDES: dict[str, str] = {
     "display.timezone": "STINGRAY_DISPLAY_TZ",
     "summary.path": "STINGRAY_SUMMARY_PATH",
     "summary.model": "STINGRAY_SUMMARY_MODEL",
+    "sensors.pi.thermal_path": "STINGRAY_PI_THERMAL_PATH",
 }
 
 
@@ -47,6 +48,8 @@ class SensorConfig(BaseModel):
     i2c_bus: int = Field(default=1, ge=0)
     address: int = Field(default=0, ge=0x00, le=0x7F)
     cadence_seconds: float = Field(default=5.0, gt=0)
+    #: Thermal zone read by the Pi host driver; irrelevant to I2C sensors.
+    thermal_path: str = "/sys/class/thermal/thermal_zone0/temp"
 
 
 class TelegramConfig(BaseModel):
@@ -141,7 +144,7 @@ class AppConfig(BaseModel):
 
     def enabled_sensors(self) -> list[SensorId]:
         """All sensors that are configured and enabled, in canonical order."""
-        order = [SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30]
+        order = [SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30, SensorId.PI]
         return [s for s in order if self.sensor_config(s).enabled]
 
 

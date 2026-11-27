@@ -75,6 +75,38 @@ def test_footer_text_shows_version_ip_and_last_updated(monkeypatch) -> None:
     assert centered[1].startswith("Upd ")
 
 
+def test_header_shows_pi_cpu_temperature(monkeypatch) -> None:
+    dashboard = DisplayDashboard(FakeDriver(), app_version="0.2.0")  # type: ignore[arg-type]
+    state = dashboard._build_state(
+        _snapshot(time.time(), cpu_temperature=63.8, ip_address="192.168.68.53")
+    )
+    centered: list[str] = []
+    monkeypatch.setattr(
+        dashboard_module,
+        "draw_centered_text",
+        lambda draw, text, rect, font, fill: centered.append(text),
+    )
+
+    dashboard._render_header(state)
+
+    assert "CPU 63.8°C" in centered
+
+
+def test_header_cpu_placeholder_when_no_reading(monkeypatch) -> None:
+    dashboard = DisplayDashboard(FakeDriver(), app_version="0.2.0")  # type: ignore[arg-type]
+    state = dashboard._build_state(_snapshot(time.time()))
+    centered: list[str] = []
+    monkeypatch.setattr(
+        dashboard_module,
+        "draw_centered_text",
+        lambda draw, text, rect, font, fill: centered.append(text),
+    )
+
+    dashboard._render_header(state)
+
+    assert "CPU --" in centered
+
+
 def test_footer_only_redraw_when_only_network_fact_changes() -> None:
     driver = FakeDriver()
     dashboard = DisplayDashboard(driver, app_version="0.2.0")  # type: ignore[arg-type]

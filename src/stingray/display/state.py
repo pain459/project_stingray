@@ -16,6 +16,8 @@ class DisplayState:
     # Header
     date: str = ""
     time: str = ""
+    #: Pi host CPU temperature (not ambient air), rendered in the header.
+    cpu_temperature: str = "--"
     
     # Status
     status_text: str = "AIR QUALITY: --"

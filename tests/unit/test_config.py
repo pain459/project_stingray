@@ -8,6 +8,7 @@ import pytest
 
 from stingray.core.config import load_config
 from stingray.core.errors import ConfigError
+from stingray.core.models import SensorId
 
 
 def _write(tmp_path: Path, content: str) -> Path:
@@ -93,6 +94,14 @@ class TestLoadConfig:
         cfg = load_config(p)
         assert cfg.storage.path == "/tmp/custom-parquet"
 
+    def test_env_override_pi_thermal_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p = _write(tmp_path, "mode: mock\n")
+        monkeypatch.setenv("STINGRAY_PI_THERMAL_PATH", "/tmp/cpu-thermal")
+        cfg = load_config(p)
+        assert cfg.sensor_config(SensorId.PI).thermal_path == "/tmp/cpu-thermal"
+
     def test_telegram_token_from_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         p = _write(tmp_path, "mode: mock\n")
         monkeypatch.setenv("STINGRAY_TELEGRAM_BOT_TOKEN", "secret-token")
@@ -105,4 +114,4 @@ class TestLoadConfig:
         )
         cfg = load_config(example)
         assert cfg.mode == "mock"
-        assert len(cfg.enabled_sensors()) == 4
+        assert len(cfg.enabled_sensors()) == 5

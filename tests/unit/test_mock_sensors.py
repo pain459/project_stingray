@@ -10,7 +10,7 @@ from stingray.core.errors import (
     SensorReadError,
 )
 from stingray.core.models import MetricId, SensorId, SensorState
-from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
+from stingray.sensors.mock import MockPiCpu, MockSCD4X, MockSGP41, MockSHT45, MockSPS30
 
 
 class TestMockSHT45:
@@ -81,6 +81,18 @@ class TestMockSPS30:
             assert expected in metrics
 
 
+class TestMockPiCpu:
+    def test_produces_distinct_cpu_metric(self) -> None:
+        s = MockPiCpu(seed=1)
+        s.initialize()
+        readings = list(s.read())
+
+        assert len(readings) == 1
+        assert readings[0].sensor is SensorId.PI
+        assert readings[0].metric is MetricId.CPU_TEMPERATURE_C
+        assert readings[0].unit == "degC"
+
+
 class TestFailureInjection:
     def test_timeout_failure(self) -> None:
         s = MockSHT45(seed=1)
@@ -144,7 +156,7 @@ class TestContract:
 
     @pytest.mark.parametrize(
         "factory",
-        [MockSHT45, MockSCD4X, MockSGP41, MockSPS30],
+        [MockSHT45, MockSCD4X, MockSGP41, MockSPS30, MockPiCpu],
     )
     def test_protocol(self, factory: type) -> None:
         s = factory(seed=0)

@@ -25,7 +25,8 @@ from stingray.core.scheduler import MeasurementQueue, SensorScheduler, build_spe
 from stingray.core.sensor_protocol import CadenceSpec, SensorDriver
 from stingray.deploy_control import DeployControl
 from stingray.display import DisplayService
-from stingray.sensors.mock import MockSCD4X, MockSGP41, MockSHT45, MockSPS30
+from stingray.sensors.mock import MockPiCpu, MockSCD4X, MockSGP41, MockSHT45, MockSPS30
+from stingray.sensors.pi_cpu import PiCpuTemperature
 from stingray.sensors.scd4x import SCD4X
 from stingray.sensors.sgp41 import SGP41
 from stingray.sensors.sht45 import SHT45
@@ -39,7 +40,7 @@ log = logging.getLogger("stingray")
 #: a sensor listed here has a real driver, everything else must stay disabled
 #: in hardware mode so a half-finished bring-up cannot silently produce gaps.
 _HARDWARE_READY: frozenset[SensorId] = frozenset(
-    {SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30}
+    {SensorId.SHT45, SensorId.SCD4X, SensorId.SGP41, SensorId.SPS30, SensorId.PI}
 )
 
 _DEFAULT_CONFIG = (
@@ -58,6 +59,8 @@ def build_mock_drivers(config: AppConfig) -> list[SensorDriver]:
         drivers.append(MockSGP41())
     if config.sensor_config(SensorId.SPS30).enabled:
         drivers.append(MockSPS30())
+    if config.sensor_config(SensorId.PI).enabled:
+        drivers.append(MockPiCpu())
     return drivers
 
 
@@ -119,6 +122,10 @@ def build_hardware_drivers(config: AppConfig) -> list[SensorDriver]:
                 temperature_provider=sht_driver.sample if sht_driver else None,
             )
         )
+    if config.sensor_config(SensorId.PI).enabled:
+        # Host telemetry from a sysfs thermal zone; no I2C bus is involved.
+        pi = config.sensor_config(SensorId.PI)
+        drivers.append(PiCpuTemperature(thermal_path=pi.thermal_path))
     return drivers
 
 

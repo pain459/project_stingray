@@ -162,6 +162,9 @@ class DisplayService:
         voc = get(SensorId.SGP41, MetricId.VOC_INDEX)
         nox = get(SensorId.SGP41, MetricId.NOX_INDEX)
 
+        # Pi host telemetry (kept separate from ambient temperature)
+        cpu_temperature = get(SensorId.PI, MetricId.CPU_TEMPERATURE_C)
+
         # Temperature and humidity: SHT45 is authoritative
         temperature = sht45_temp if sht45_temp is not None else scd4x_temp
         humidity = sht45_hum if sht45_hum is not None else scd4x_hum
@@ -197,6 +200,7 @@ class DisplayService:
             temperature=temperature,
             humidity=humidity,
             tps=tps,
+            cpu_temperature=cpu_temperature,
             sensor_online=any_online,
             sensor_warming=scd4x_warming,
             ip_address=self._network.ip_address if self._network is not None else None,

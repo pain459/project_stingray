@@ -45,6 +45,10 @@ sensors:
     cadence_seconds: 10
     enabled: true
     i2c_bus: 1
+  pi:
+    cadence_seconds: 30
+    enabled: true
+    thermal_path: /sys/class/thermal/thermal_zone0/temp
 storage:
   path: /mnt/stingray/parquet
   retention_days: 30

@@ -61,6 +61,9 @@
       const n10 = lm['sps30:pm10_num_m3']; setText('n10', n10 ? fmtVal(n10.value, 1) : '--');
       const tps = lm['sps30:tps_um']; setText('tps', tps ? fmtVal(tps.value, 2) + ' µm' : '--');
 
+      const cpu = lm['pi:cpu_temperature_c'];
+      setText('picpu', cpu ? fmtVal(cpu.value, 1) + ' °C' : '--');
+
       const net = d.network || {};
       setText('netif', net.interface || '--');
       setText('ipaddr', net.ip_address || '--');

@@ -32,6 +32,10 @@ sensors:
     i2c_bus: 1
     address: 0x69
     cadence_seconds: 10
+  pi:
+    enabled: true
+    cadence_seconds: 30
+    thermal_path: /sys/class/thermal/thermal_zone0/temp
 
 display:
   enabled: true

@@ -53,6 +53,8 @@ class SensorSnapshot:
     temperature: Optional[float] = None
     humidity: Optional[float] = None
     tps: Optional[float] = None
+    #: Pi host telemetry, deliberately separate from ambient ``temperature``.
+    cpu_temperature: float | None = None
     sensor_online: bool = True
     sensor_warming: bool = False
     ip_address: str | None = None
@@ -171,6 +173,21 @@ class DisplayDashboard:
             # Date (left)
             font = self._get_font(15, bold=True)
             draw.text((4, (height - 15) // 2), state.date, font=font, fill=rgb565_to_rgb(COLORS["white"]))
+
+            # Pi CPU temperature (center): host telemetry, not ambient air.
+            cpu_font = self._get_font(10, bold=True)
+            cpu_text = (
+                f"CPU {state.cpu_temperature}°C"
+                if state.cpu_temperature != "--"
+                else "CPU --"
+            )
+            draw_centered_text(
+                draw,
+                cpu_text,
+                (108, 0, 104, height),
+                cpu_font,
+                rgb565_to_rgb(COLORS["warning"]),
+            )
 
             # Time (right)
             time_text = state.time
@@ -330,9 +347,11 @@ class DisplayDashboard:
         temp_text = self._format_value(snapshot.temperature, 1)
         humidity_text = self._format_value(snapshot.humidity, 0)
         tps_text = self._format_value(snapshot.tps, 2)
+        cpu_text = self._format_value(snapshot.cpu_temperature, 1)
 
         return DisplayState(
             date=now.strftime("%a %d %b"),
+            cpu_temperature=cpu_text,
             time=now.strftime("%H:%M"),
             status_text=f"AIR QUALITY: {overall_level.name}",
             overall_level=overall_level,

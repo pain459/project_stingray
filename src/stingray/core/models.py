@@ -21,6 +21,8 @@ class SensorId(StrEnum):
     SCD4X = "scd4x"
     SGP41 = "sgp41"
     SPS30 = "sps30"
+    #: Raspberry Pi host telemetry (thermal zone), not an ambient air sensor.
+    PI = "pi"
 
 
 class MetricId(StrEnum):
@@ -41,6 +43,9 @@ class MetricId(StrEnum):
     TPS_UM = "tps_um"
     CO2_PPM = "co2_ppm"
     TEMPERATURE_C = "temperature_c"
+    #: Raspberry Pi SoC/CPU temperature from a thermal zone. Kept distinct from
+    #: ambient temperature so hourly aggregates never mix the two.
+    CPU_TEMPERATURE_C = "cpu_temperature_c"
     RELATIVE_HUMIDITY_PERCENT = "relative_humidity_percent"
     VOC_INDEX = "voc_index"
     NOX_INDEX = "nox_index"
@@ -61,6 +66,7 @@ METRIC_UNITS: dict[MetricId, str] = {
     MetricId.TPS_UM: "um",
     MetricId.CO2_PPM: "ppm",
     MetricId.TEMPERATURE_C: "degC",
+    MetricId.CPU_TEMPERATURE_C: "degC",
     MetricId.RELATIVE_HUMIDITY_PERCENT: "%",
     MetricId.VOC_INDEX: "index",
     MetricId.NOX_INDEX: "index",

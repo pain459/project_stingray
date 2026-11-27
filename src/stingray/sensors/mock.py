@@ -236,6 +236,17 @@ class MockSPS30(MockSensor):
         yield self._measurement(MetricId.TPS_UM, round(0.5 + pm25 / 100, 2), now)
 
 
+class MockPiCpu(MockSensor):
+    """Emulates the Pi host thermal zone (CPU temperature, not ambient)."""
+
+    def __init__(self, *, seed: int = 0, cpu_c: float = 55.0) -> None:
+        super().__init__(SensorId.PI, seed=seed, start_value=cpu_c, drift=0.5)
+
+    def _measurements(self, now: datetime) -> Iterator[Measurement]:
+        temp = max(-40.0, min(125.0, self._value))
+        yield self._measurement(MetricId.CPU_TEMPERATURE_C, round(temp, 1), now)
+
+
 def _state_from_failures(count: int) -> SensorState:
     if count == 0:
         return SensorState.READY

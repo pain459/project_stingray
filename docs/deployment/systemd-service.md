@@ -191,6 +191,13 @@ datasheet defaults (25 °C / 50 %RH).
 
 - SPS30 typical particle size uses the uint16 field, which is in **nm**; the
   driver divides by 1000 to publish `tps_um` in µm (raw 566 → 0.566 µm).
+- The Pi host reports SoC temperature from
+  `/sys/class/thermal/thermal_zone0/temp` (millidegrees Celsius). It is
+  published as sensor `pi`, metric `cpu_temperature_c`, shown in the TFT header
+  and the dashboard live page, and chartable from the history selector. It is
+  **not** ambient air temperature: it is deliberately excluded from the
+  SHT45/SCD4X hourly aggregates and the curated Telegram card. The path can be
+  overridden with `STINGRAY_PI_THERMAL_PATH`.
 - `/api/live` includes a `network` object with active WiFi interface, IP and
   RSSI (dBm) from standard library calls; no SSID, password, MAC or route is
   exposed.
