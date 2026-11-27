@@ -34,20 +34,7 @@ cd "$TARGET"
 uv venv .venv --python "$(command -v python)"
 uv sync --frozen --no-dev --extra hardware --no-editable
 
-echo "==> Relocating venv Python paths for the Pi (/usr/bin/$PY_NAME)"
-sed -i "s#^home = .*#home = /usr/bin#" .venv/pyvenv.cfg
-ln -sfn "/usr/bin/$PY_NAME" .venv/bin/python
-ln -sfn "/usr/bin/$PY_NAME" ".venv/bin/$PY_NAME"
-if [[ -e .venv/bin/python3 ]]; then
-  ln -sfn "/usr/bin/$PY_NAME" .venv/bin/python3
-fi
-
-# The container's lib dir is python3.13 but the installed package is pure Python;
-# compiled extensions are inside site-packages and are already aarch64.
-find "$TARGET" -type d -name __pycache__ -prune -exec rm -rf {} +
-find "$TARGET" -type d \( -name .pytest_cache -o -name .ruff_cache -o -name .mypy_cache \) -prune -exec rm -rf {} +
-
-echo "==> Smoke testing the built venv"
+echo "==> Smoke testing the built venv (before relocation)"
 .venv/bin/python - <<'PY'
 from stingray.core.config import load_config
 cfg = load_config("config/application.combined.yaml")
@@ -61,6 +48,18 @@ PY
 find .venv/lib -name '_GPIO*.so' -print -quit | grep -q . \
   || { echo "RPi.GPIO extension missing" >&2; exit 1; }
 echo "RPi.GPIO extension present"
+
+# Smoke tests populate __pycache__; clean caches before packaging.
+find "$TARGET" -type d -name __pycache__ -prune -exec rm -rf {} +
+find "$TARGET" -type d \( -name .pytest_cache -o -name .ruff_cache -o -name .mypy_cache \) -prune -exec rm -rf {} +
+
+echo "==> Relocating venv Python paths for the Pi (/usr/bin/$PY_NAME)"
+sed -i "s#^home = .*#home = /usr/bin#" .venv/pyvenv.cfg
+ln -sfn "/usr/bin/$PY_NAME" .venv/bin/python
+ln -sfn "/usr/bin/$PY_NAME" ".venv/bin/$PY_NAME"
+if [[ -e .venv/bin/python3 ]]; then
+  ln -sfn "/usr/bin/$PY_NAME" .venv/bin/python3
+fi
 
 echo "==> Packaging"
 cd "$RELEASES"
