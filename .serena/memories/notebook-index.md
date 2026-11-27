@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main tip 6fa5f5d / functional tag v0.2.10 at ccd8f2a; blog-ready notes persisted (deep manual, config matrix, gotchas, runbook, focused code maps, blog source pack). Pi runs 0.2.10 / ccd8f2a... with local browser clock, double-buffered chart, flat neon logo, and logo HTTP 200; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main tip 7e1771c / functional tag v0.2.10 at ccd8f2a; dashboard blog notes and full hardware wiring reference persisted. Pi runs 0.2.10 / ccd8f2a... with local browser clock, double-buffered chart, flat neon logo, and logo HTTP 200; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -8,6 +8,7 @@
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
 # - Ref - project_stingray - Dashboard Modernization Blog Source Pack (note:lb88ced5ed92ah5quqcv) — blog-ready timeline, decisions, failure story, verification, outline
+# - Ref - project_stingray - Hardware Wiring Reference (note:gzwrzkm1a3gxcfpkavkg) — DFR0918 BCM map, I2C/SPI wiring, SPS30/SCD4x/SHT4x+SGP41/ILI9341, as-built gaps
 # - Runbook - project_stingray - Debug Deployed Package on stingray (note:yzww5cqdo4jh5kdaibqk) — symptom-based Pi debugging; repo doc docs/deployment/operator-runbook.md
 # - Runbook - project_stingray - Build, Test, Run (note:lbop5xicy244emtzy1yq) [unverified]
 # - Gotcha - project_stingray - Critical Invariants, Build Overrides, and Operational Traps (note:0wabhzcbg4mr15xfmrz3)
@@ -47,6 +48,7 @@
 # - Session - 2026-11-27 - Dashboard UI Modernization and v0.2.7 Release (note:9uks6aa1hg2tsleff52y) [early deploy before timer; human visual review pending]
 # - Session - 2026-11-27 - Release Control Refresh and v0.2.8 (note:t5t9gduqw9y023i2q1tl) [read-only GitHub update check; deployed early]
 # - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored; blog notes persisted]
+# - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [documented plan, not audited as-built]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
 # - Session - 2026-11-27 - Pi CPU temperature telemetry (note:5qp0j5qpamsvp49myv8e)
@@ -69,6 +71,7 @@
 # rule for /usr/bin/systemctl restart stingray.service is now permanent, NOT temporary.
 # (10) HISTORY_URL already contains ?mode=history: append &metric=..., never ?metric=..., or the server returns 400 unknown mode (gotcha note:qj5im2u5bx1zns1jpvzc; fixed at 43aae91, released and force deployed as v0.2.6 / ab9e53a).
 # (11) A new static asset URL prefix must be routed in ApiHandler/do_GET; adding the file and MIME type is not enough. v0.2.9 logo 404 fixed in v0.2.10 by routing /assets/ to _serve_static.
+# (12) DFR0918 uses BCM labels; never confuse TFT SDI/SDA (SPI MOSI GPIO10) with sensor SDA (I2C GPIO2), and never energize both VIN and 3V3 on unknown SHT4x+SGP4x/SCD4x boards. Detailed reference: note:gzwrzkm1a3gxcfpkavkg.
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at
