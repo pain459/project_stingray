@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main/tag commit ab9e53a, release v0.2.6 published and force deployed to Pi at 14:34 UTC (user approved), history URL 400 fixed and all metric history URLs 200; prior v0.2.5 verification: green CI, load ~0.8, ~8 queries/min, model_used true. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-27, main commit cb53386 with dark-instrument-panel dashboard UI; v0.2.6 tag and Pi deployment remain frozen at ab9e53a (published and force deployed 14:34 UTC, history URL 400 fixed, all metric history URLs 200). Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -15,6 +15,8 @@
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 # - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
+# - Decision - project_stingray - Dashboard Visual Direction Dark Instrument Panel (note:2940yg33k09buc8xbras)
+# - Gotcha - project_stingray - Chart CSS Variables Must Be Six-Digit Hex (note:q8p1okl1mdlbaefqxbwp)
 #
 # Release / deployment (current)
 # - Decision - project_stingray - GitHub Release Build and Pi Auto-Deploy (note:r12f3agbargyl1wsbai8)
