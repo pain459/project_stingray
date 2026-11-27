@@ -101,3 +101,9 @@ def test_neon_logo_replaces_letter_and_gradients_are_removed() -> None:
     css = (_STATIC / "css/main.css").read_text(encoding="utf-8")
     assert 'src="assets/stingray-logo.png"' in html
     assert "gradient(" not in css
+
+
+def test_static_asset_route_serves_the_logo() -> None:
+    server = (_ROOT / "src" / "stingray" / "api" / "server.py").read_text(encoding="utf-8")
+    assert 'path.startswith("/assets/")' in server
+    assert '".png": "image/png"' in server

@@ -250,7 +250,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._serve_latest_summary()
         elif path == "/api/deploy/status":
             self._serve_deploy_status()
-        elif path.startswith("/css/") or path.startswith("/js/"):
+        elif path.startswith("/css/") or path.startswith("/js/") or path.startswith("/assets/"):
             self._serve_static(path)
         else:
             _json_response(self, 404, {"error": "not found"})
@@ -276,7 +276,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         _html_response(self, 200, html)
 
     def _serve_static(self, path: str) -> None:
-        """Serve static assets (CSS, JS) from the static directory."""
+        """Serve static assets (CSS, JS, images) from the static directory."""
         # Prevent path traversal
         if ".." in path:
             _json_response(self, 403, {"error": "forbidden"})
