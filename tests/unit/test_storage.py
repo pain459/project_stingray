@@ -82,6 +82,21 @@ class TestWriter:
         tmps = list(storage_dir.rglob("*.tmp"))
         assert len(tmps) == 0
 
+    def test_second_writer_does_not_overwrite_first(self, storage_dir: Path) -> None:
+        first = ParquetWriter(storage_dir, batch_size=10)
+        first.add(_measurement(value=1.0, observed=datetime(2026, 11, 28, 1, 0, tzinfo=UTC)))
+        first.flush()
+
+        # A restarted process starts with a fresh module state. Its first
+        # chunk must not reuse the previous process's filename.
+        second = ParquetWriter(storage_dir, batch_size=10)
+        second.add(_measurement(value=2.0, observed=datetime(2026, 11, 28, 2, 0, tzinfo=UTC)))
+        second.flush()
+
+        files = list(storage_dir.rglob("*.parquet"))
+        assert len(files) == 2
+        assert ParquetQuery(storage_dir).count() == 2
+
 
 class TestReadThreadBudget:
     def test_read_connections_do_not_use_duckdb_default_thread_count(self) -> None:

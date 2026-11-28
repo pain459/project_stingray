@@ -11,8 +11,8 @@ Layout on disk::
       year=2026/
         month=11/
           day=25/
-            chunk_1732456800.parquet
-            chunk_1732456860.parquet
+            chunk_9f0b5d2e4a6c47f1a83e6b90d2c4f7ab.parquet
+            chunk_c1d8e3a07b5f4e6d9a2c8f4b1e7d5036.parquet
             ...
 
 Atomic writes: each flush writes to a ``.tmp`` filename, then renames to the
@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -36,18 +37,15 @@ from stingray.core.models import Measurement, SensorId
 
 log = logging.getLogger("stingray.storage")
 
-# Global monotonic counter for chunk filenames. Shared across all writer
-# instances so that two writers (e.g. after a restart) never produce the
-# same filename.
-_chunk_counter = 0
-_chunk_counter_lock = threading.Lock()
 
+def _next_chunk_id() -> str:
+    """Return a collision-free chunk id.
 
-def _next_chunk_id() -> int:
-    global _chunk_counter
-    with _chunk_counter_lock:
-        _chunk_counter += 1
-        return _chunk_counter
+    A process-local counter is reused after a restart and overwrites the
+    chunk files written by the previous process. UUIDs remain unique across
+    processes and restarts, so never-restarted history is preserved.
+    """
+    return uuid.uuid4().hex
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +140,7 @@ class ParquetWriter:
         day_dir.mkdir(parents=True, exist_ok=True)
 
         chunk_id = _next_chunk_id()
-        final_name = f"chunk_{chunk_id:010d}.parquet"
+        final_name = f"chunk_{chunk_id}.parquet"
         final_path = day_dir / final_name
         tmp_path = day_dir / f"{final_name}.tmp"
 

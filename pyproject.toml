@@ -1,6 +1,6 @@
 [project]
 name = "stingray"
-version = "0.2.14"
+version = "0.2.15"
 description = "Raspberry Pi 4 air-quality monitoring application (migrated from ESP32-S3)"
 readme = "README.md"
 requires-python = ">=3.11"
