@@ -56,6 +56,7 @@
 # - Session - 2026-11-28 - Cold History Window Fix and v0.2.11 Release (note:sw4lmwu10tm0mobqvxcg) [cold 6 h history fixed, released and deployed]
 # - Session - 2026-11-28 - Hourly Summary Min Max and v0.2.12 Release (note:884po6yvpajlbdkask97) [summary min/max, manual-run badge, last-run retention; released and deployed]
 # - Session - 2026-11-28 - Gas Quality Dashboard and v0.2.13 Force Deploy (note:p1ybizgv7gah6f0c6a42) [gas labels/trends released and force-deployed; human visual review pending]
+# - Session - 2026-11-28 - History Gap Chart Fix and v0.2.14 Release (note:twt294eqzir0dik5pfos) [line/fill breaks at real gaps; released and deployed by scheduled poll; human visual review pending]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
