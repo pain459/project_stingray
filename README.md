@@ -55,6 +55,11 @@ for the release process, bootstrap, verification and rollback, and
 [`docs/deployment/systemd-service.md`](docs/deployment/systemd-service.md)
 for the service/unit reference and troubleshooting.
 
+Current deployed release: **v0.2.16** (`2f4986a`), verified on the Pi with
+checksum-matched assets. Parquet chunks use UUID names and are fsynced before
+and after rename; read queries skip damaged chunks so one bad file cannot break
+the history API.
+
 Development and release workflow:
 
 1. Make and push changes from this checkout on `pathfinder`.

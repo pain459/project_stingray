@@ -112,6 +112,8 @@ storage and in-memory health only.
 | Pi polls GitHub Releases at :15 and :45 (`OnCalendar=*:15,45`) | Keeps the 30-minute maximum lag of the original `*:0/30` schedule but moves the release restart away from the top-of-hour hourly summary, so an LLM/Telegram run is never overlapped | 10-minute interval; `*:0/30` at :00; polling on every main push |
 | Webpage "Deploy latest" and "Force redeploy" trigger a one-shot systemd unit, not a child process of the API | A deploy restarts `stingray.service`, and systemd's cgroup kill mode would terminate any API-spawned worker mid-deploy | Running the CLI directly from the request handler or a background thread |
 | Two fixed unit instances with a narrow `monusr` sudoers rule and no dashboard auth | The CLI is privileged; fixed names prevent arbitrary unit starts, and the dashboard is for a trusted LAN | Token auth or an open sudo rule |
+| UUIDv4 Parquet chunk filenames (`chunk_<uuid>.parquet`) | A process-local counter reset on every restart and overwrote earlier chunks; UUIDs stay unique across processes and restarts | Seeded counters or timestamps (can race or collide) |
+| Fsync the temp file before rename and the day directory after rename; reject 0-byte output | A bare rename is not durable: a power cut kept the new filename while losing the bytes, producing 0-byte chunks that broke DuckDB queries | Rename-only atomicity; retrying on the next boot |
 
 ---
 
@@ -158,7 +160,9 @@ server-side cooldown.
 | Hourly local-LLM summary + Telegram | done and deployed |
 | Optional keyless Open-Meteo outdoor context | implemented; fail-soft and attributed |
 | Beautified Telegram/dashboard output + rate-limited on-demand refresh | done and deployed |
-| DuckDB thread cap + refresh polling fix | implemented and pushed, awaiting Pi pull |
+| DuckDB thread cap + refresh polling fix | done and deployed |
+| Parquet restart-overwrite fix (UUID chunks) | done and deployed in v0.2.15 |
+| Durable Parquet writes and damaged-chunk tolerance | done and deployed in v0.2.16 |
 | ESP32 reference API capture / alert parity (Phase 08) | open / blocked on reference captures |
 | Fan/power root cause (STG-004) | open; original host runs without a fan |
 
@@ -187,6 +191,12 @@ time-bounded (latest 2 h, count 24 h) and why bulk work happens on
 9. Open-Meteo context is keyless, non-commercial, stdlib-only and attributed
    `Open-Meteo/CAMS`; outdoor values are a nearby model estimate, never a local
    measurement, an eighth curated metric, or Pi CPU temperature.
+10. Parquet publication is durable: fsync the temp file before rename, reject a
+    0-byte temp file, and fsync the day directory after rename. A bare rename
+    can survive a power cut as a zero-length chunk.
+11. Read queries must skip zero-byte or bad-magic Parquet files; one damaged
+    chunk must never take down the history or latest APIs. Quarantining damaged
+    files requires explicit owner approval.
 
 ---
 
@@ -205,4 +215,13 @@ time-bounded (latest 2 h, count 24 h) and why bulk work happens on
   open items in [`hardware/wiring.md`](hardware/wiring.md).
 - **Deployment lag.** After pushing a release from `pathfinder`, confirm the
   deployed version with `/home/ravik/bin/stingray-deploy status` and the served
-  script cache version before judging a fix; the Pi polls at :15 and :45.
+  script cache version before judging a fix; the Pi polls at :15 and :45. A
+  dashboard poll action can deploy earlier than the timer; it still verifies
+  the checksum and uses the same poll path, not a force reinstall.
+- **Historical gap is unrecoverable.** The 2026-11-28 03:31:56–05:15:36 UTC
+  PM2.5 hole was caused by the old chunk-counter overwrite and cannot be
+  restored from available backups. New releases prevent it from growing; they
+  do not backfill it.
+- **Enclosure and cooling.** The owner is moving to a hardware phase to build
+  an enclosure and cooling for the Pi. The existing fan/power question
+  (STG-004) remains open; do not change thermal rules from software alone.

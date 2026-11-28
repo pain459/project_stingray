@@ -20,10 +20,12 @@ runs exactly that artifact**. The Pi no longer needs a git checkout. Data under
    automatically if the service does not come up healthy.
 4. The three newest releases are kept for rollback; older ones are deleted.
 
-## Current deployed state (2026-11-27)
+## Current deployed state (2026-11-28)
 
-- Release `v0.2.0`, build sha `64af31a4d75a095031b0ccaeca958894f123cbb9`,
-  installed at `/opt/stingray/releases/0.2.0` via `/opt/stingray/current`.
+- Release `v0.2.16`, build sha `2f4986a2a930eedb5663495c4aaa87947f4c5680`,
+  installed at `/opt/stingray/releases/0.2.16` via `/opt/stingray/current`.
+  Verified after deploy: service active, dashboard/history/latest HTTP 200,
+  checksum-matched asset, unchanged script cache tags, both timers on schedule.
 - **The Pi has no git checkout.** Code, config and the venv come only from the
   release tarball. Data under `/mnt/stingray` and credentials under
   `/etc/stingray` are host-owned and never part of a release.
@@ -198,4 +200,10 @@ the deployed bits identical to the evaluated artifact; only `pyvenv.cfg`'s
   `OnCalendar=*:15,45` (away from the hourly summary at `:00`).
 - The `hardware` extra now includes `RPi.GPIO` (previously installed manually).
 - Release workflow and CI both use Python 3.13 to match the Pi.
+- A dashboard **Deploy latest** action starts `stingray-web-deploy@poll.service`
+  and can install a newly published release before the next `:15`/`:45` timer.
+  It is still a checksum-verified poll, not a force reinstall.
+- A rapid stop/start during cutover can make SCD4X fail its first init with
+  `[Errno 5] Input/output error`. `Restart=on-failure` recovered on the next
+  start in v0.2.16; confirm `/api/health` before treating it as a sensor fault.
 - Never run `scripts/validate_gas_sensors.py` while `stingray.service` is active.

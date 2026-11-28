@@ -1,9 +1,10 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-28, release v0.2.15 = 27bacc7; Pi runs 0.2.15 / 27bacc7... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, browser-derived gas quality states/trends, chart gap breaks, and UUID Parquet chunk names that prevent restart overwrite; service active, dashboard 200. Historical 03:31:56-05:15:36 UTC data loss remains and is not recoverable from available backups.
+# Updated 2026-11-28, release v0.2.16 = 2f4986a; Pi runs 0.2.16 / 2f4986a... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, browser-derived gas quality states/trends, chart gap breaks, UUID Parquet chunk names that prevent restart overwrite, and durable fsynced writes plus damaged-chunk-tolerant reads; service active, dashboard 200. Historical 03:31:56-05:15:36 UTC data loss remains and is not recoverable from available backups.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
 #
+# Gotcha - project_stingray - Parquet Rename Without fsync Leaves Zero-Byte Files After Power Loss (note:gzmm2r67acbxyvsp30m7) — an unclean shutdown right after rename left four 0-byte UUID chunks that broke history/latest APIs; quarantined with owner approval; fixed in v0.2.16 with file+directory fsync and read-side skipping.
 # Architecture / reference
 # - Ref - project_stingray - Deep Architecture and Engineering Manual (note:klnqsmswnwqn4i1fd0f1)
 # - Ref - project_stingray - Comprehensive Configuration Properties and Pod Overrides (note:31j28ur6e38zjh9k5aph)
@@ -59,7 +60,7 @@
 # - Session - 2026-11-28 - Hourly Summary Min Max and v0.2.12 Release (note:884po6yvpajlbdkask97) [summary min/max, manual-run badge, last-run retention; released and deployed]
 # - Session - 2026-11-28 - Gas Quality Dashboard and v0.2.13 Force Deploy (note:p1ybizgv7gah6f0c6a42) [gas labels/trends released and force-deployed; human visual review pending]
 # - Session - 2026-11-28 - History Gap Chart Fix and v0.2.14 Release (note:twt294eqzir0dik5pfos) [line/fill breaks at real gaps; released and deployed by scheduled poll; human visual review pending]
-# - Session - 2026-11-28 - Parquet Overwrite Fix and v0.2.15 Release (note:1tsad2nzkcp6ii94x63r) [UUID chunk fix, backup, verified release, scheduled deploy; historical gap unrecoverable; human visual review pending]
+# - Session - 2026-11-28 - Parquet Overwrite Fix and v0.2.15 Release (note:1tsad2nzkcp6ii94x63r) [UUID fix, power-cycle test, zero-byte fsync bug, quarantine, v0.2.16 release/deploy, docs/blog update; historical gap unrecoverable; owner confirmed all good]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
@@ -101,6 +102,8 @@
 # Telegram compact curated card at 9ddf2ce (7 metrics, code rows, raw signals hidden).
 # CUTOVER COMPLETE 2026-11-27: Pi runs v0.2.0 from /opt/stingray/releases/0.2.0 via /opt/stingray/current; git checkout removed; deploy timer was OnCalendar=*:0/30 at cutover (user asked for 30min then; now :15/:45); all four sensors healthy; dashboard summary.js?v=10. Old scripts/deploy-pi.sh deleted from GitHub. Bootstrap needs interactive sudo; see Gotcha note m3tllw7y4q3p9po7imzm.
 # Never run summary_job or validate_gas_sensors.py while the other is active.
+
+# RELEASE v0.2.16 (2f4986a) 2026-11-28: durable Parquet writes (fsync file before rename, fsync day directory after rename, reject 0-byte temp) and read-side skipping of zero-byte/bad-magic chunks; CI 46126698111, dry run 46126995965, release 46127242422 all green; published asset stingray-0.2.16-arm64.tar.gz SHA-256 3a633768b67b5ced1db7d1dd1d5529bf2df56aaecc0df6b3f3d392642b38e795 verified, BUILD_SHA=2f4986a2a930eedb5663495c4aaa87947f4c5680, no __pycache__/.pyc, dashboard script tags unchanged; deployed 2026-11-28 14:24 IST by owner-triggered web poll (not force); live VERSION/BUILD_SHA correct, history/latest HTTP 200, zero 0-byte Parquet files, original gap unchanged, transient scd4x I/O error on first start recovered by systemd restart. Four 0-byte chunks from the power-cycle test were quarantined to /home/ravik/stingray-parquet-backups/zero-byte-20261128T0823Z with owner approval and API restored on v0.2.15; historical 03:31:56-05:15:36 UTC gap remains unrecoverable.
 
 # WEB DEPLOY COMPLETE 2026-11-27: v0.2.1 from a07e1af published after rerun of transient build failure (45974111254) and deployed to Pi. Both @poll and @force buttons verified end-to-end (202 → unit success → status file → API). Pi hardware mode, 0 failed reads; timer was OnCalendar=*:0/30 at v0.2.1 (now :15/:45). Session: note:em68bsg3bi7u0jgpbl1b. Code map: note:s72y4yu86y4ckicly8z1. One-time Pi installer completed by user.
 #

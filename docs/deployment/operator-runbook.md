@@ -226,6 +226,33 @@ Sensor sampling intervals differ by design: SHT45 and SGP41 are high-frequency,
 SCD4X is ~5 s, and SPS30 is slower. A slow-moving metric is not necessarily
 stale — compare `observed_at` in `/api/live` with the current time.
 
+### History API fails with "too small to be a Parquet file"
+
+DuckDB aborts when a zero-byte or truncated `.parquet` file is present. This
+can happen after an unclean shutdown with a build older than v0.2.16, which
+renamed chunks without fsyncing them. v0.2.16 skips such files on read and
+writes durably, but an existing bad file on an older release still breaks both
+history and latest queries.
+
+```sh
+# Confirm the bad file and the journal error
+find /mnt/stingray/parquet -type f -name '*.parquet' -size 0 -printf '%TY-%Tm-%Td %TH:%TM:%TS %p\n'
+journalctl -u stingray.service --no-pager -l | grep -E 'too small to be a Parquet file|Invalid Input'
+
+# Confirm the recovery without deleting anything
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'http://127.0.0.1:8081/api/datapoints?mode=history&metric=pm2_5_ug_m3&hours=6&limit=5000'
+```
+
+Recovery procedure (requires explicit owner approval for any file move):
+
+1. Back up/quarantine the zero-byte files under
+   `/home/ravik/stingray-parquet-backups/<timestamp>/` using `sudo mv`.
+2. Do **not** delete them; their rows are already unrecoverable.
+3. Verify both `mode=history` and `mode=latest` return HTTP 200.
+4. Deploy v0.2.16 or newer so future unclean shutdowns cannot recreate the
+   problem. Never force deploy unless separately approved.
+
 ## Sensor / bus errors
 
 ```sh

@@ -48,6 +48,9 @@ reports/**/large/
 .coverage
 htmlcov/
 
+# Local agent fallback notes (never commit)
+.agent-memory/
+
 # Hardware-generated
 *.bin
 *.hex
