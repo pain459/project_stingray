@@ -15,14 +15,16 @@ Layout on disk::
             chunk_c1d8e3a07b5f4e6d9a2c8f4b1e7d5036.parquet
             ...
 
-Atomic writes: each flush writes to a ``.tmp`` filename, then renames to the
-final name. DuckDB only ever sees complete files.
+Atomic, durable writes: each flush writes to a ``.tmp`` filename, fsyncs the
+file, renames to the final name, then fsyncs the directory. DuckDB only ever
+sees complete files, and an unclean shutdown cannot leave a 0-byte chunk.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -160,9 +162,28 @@ class ParquetWriter:
             schema=_PARQUET_SCHEMA,
         )
 
-        # Write to temp file, then atomically rename
-        pq.write_table(table, tmp_path, compression="zstd")
-        tmp_path.rename(final_path)
+        # Write to temp file, flush it to stable storage, then atomically
+        # rename. A plain rename is not durable: an unclean shutdown can keep
+        # the new name while losing the file's bytes, leaving a 0-byte chunk.
+        try:
+            with tmp_path.open("wb") as fh:
+                pq.write_table(table, fh, compression="zstd")
+                fh.flush()
+                os.fsync(fh.fileno())
+            if tmp_path.stat().st_size == 0:
+                raise OSError(f"refusing to publish empty parquet chunk: {tmp_path}")
+            tmp_path.rename(final_path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        # Persist the directory entry so a crash cannot resurrect a chunk
+        # whose data was never written.
+        dir_fd = os.open(day_dir, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
 
     def __len__(self) -> int:
         with self._lock:
@@ -178,6 +199,27 @@ class ParquetWriter:
 # dashboard polling then starves the local Ollama inference that shares the CPU.
 # Read queries scan small time windows, so two threads are plenty.
 _READ_QUERY_THREADS = 2
+
+# Typed empty relation used when no usable Parquet file exists. It keeps every
+# query's column references valid instead of raising "No files found".
+_EMPTY_TABLE_REF = """(
+    SELECT
+        CAST(NULL AS VARCHAR) AS sensor,
+        CAST(NULL AS VARCHAR) AS metric,
+        CAST(NULL AS DOUBLE) AS value,
+        CAST(NULL AS VARCHAR) AS unit,
+        CAST(NULL AS VARCHAR) AS observed_at,
+        CAST(NULL AS VARCHAR) AS received_at,
+        CAST(NULL AS VARCHAR) AS quality,
+        CAST(NULL AS VARCHAR) AS diagnostics,
+        CAST(NULL AS DOUBLE) AS observed_epoch
+    WHERE FALSE
+)"""
+
+
+def _sql_string_list(values: list[str]) -> str:
+    """Render a DuckDB list of SQL string literals."""
+    return "[" + ", ".join("'" + value.replace("'", "''") + "'" for value in values) + "]"
 
 
 def connect_read_limited() -> duckdb.DuckDBPyConnection:
@@ -197,14 +239,41 @@ class ParquetQuery:
 
     def __init__(self, base_dir: str | Path) -> None:
         self._base_dir = Path(base_dir)
-        self._glob = str(self._base_dir / "**" / "*.parquet")
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         return connect_read_limited()
 
+    def _usable_files(self) -> list[str]:
+        """Return Parquet files safe to hand to DuckDB.
+
+        An unclean shutdown can leave a renamed but empty/truncated chunk.
+        A single such file aborts every query, so skip files without valid
+        Parquet magic at both ends.
+        """
+        files: list[str] = []
+        if not self._base_dir.exists():
+            return files
+        for path in self._base_dir.glob("**/*.parquet"):
+            try:
+                if path.stat().st_size < 8:
+                    continue
+                with path.open("rb") as fh:
+                    if fh.read(4) != b"PAR1":
+                        continue
+                    fh.seek(-4, os.SEEK_END)
+                    if fh.read(4) != b"PAR1":
+                        continue
+            except OSError:
+                continue
+            files.append(str(path))
+        return files
+
     def _table_ref(self) -> str:
-        """Return the DuckDB table reference for all Parquet files."""
-        return f"read_parquet('{self._glob}', hive_partitioning=true)"
+        """Return the DuckDB table reference for all usable Parquet files."""
+        files = self._usable_files()
+        if not files:
+            return _EMPTY_TABLE_REF
+        return f"read_parquet({_sql_string_list(files)}, hive_partitioning=true)"
 
     def latest(
         self, sensor: SensorId | None = None, metric: str | None = None

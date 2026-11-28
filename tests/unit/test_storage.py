@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -96,6 +97,42 @@ class TestWriter:
         files = list(storage_dir.rglob("*.parquet"))
         assert len(files) == 2
         assert ParquetQuery(storage_dir).count() == 2
+
+    def test_flush_fsyncs_file_and_directory(
+        self, storage_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[int] = []
+        real_fsync = os.fsync
+
+        def record(fd: int) -> None:
+            calls.append(fd)
+            real_fsync(fd)
+
+        monkeypatch.setattr("stingray.storage.parquet_store.os.fsync", record)
+
+        writer = ParquetWriter(storage_dir, batch_size=10)
+        writer.add(_measurement(value=1.0))
+        writer.flush()
+
+        # One fsync for the file's bytes, one for the renamed directory entry.
+        assert len(calls) >= 2
+        assert not list(storage_dir.rglob("*.tmp"))
+
+    def test_empty_chunk_is_not_published(
+        self, storage_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def write_nothing(table: object, where: object, **kwargs: object) -> None:
+            return None
+
+        monkeypatch.setattr("stingray.storage.parquet_store.pq.write_table", write_nothing)
+
+        writer = ParquetWriter(storage_dir, batch_size=10)
+        writer.add(_measurement(value=1.0))
+        with pytest.raises(OSError, match="empty parquet chunk"):
+            writer.flush()
+
+        assert list(storage_dir.rglob("*.parquet")) == []
+        assert list(storage_dir.rglob("*.tmp")) == []
 
 
 class TestReadThreadBudget:
@@ -212,6 +249,38 @@ class TestQueries:
         assert len(samples) >= 6
         assert samples[-1][0] - samples[0][0] >= timedelta(hours=5).total_seconds()
         assert samples[-1][0] <= end.timestamp() + 900
+
+    def test_query_ignores_zero_byte_chunks(self, storage_dir: Path) -> None:
+        writer = ParquetWriter(storage_dir, batch_size=10)
+        observed = utc_now()
+        writer.add(_measurement(value=7.0, observed=observed))
+        writer.flush()
+
+        day_dir = next(storage_dir.glob("year=*/month=*/day=*"))
+        (day_dir / "chunk_00000000000000000000000000000000.parquet").touch()
+
+        pq = ParquetQuery(storage_dir)
+        assert pq.count() == 1
+        rows = pq.latest()
+        assert len(rows) == 1
+        assert rows[0]["value"] == 7.0
+        samples, stats = pq.range_with_stats(
+            hours=24,
+            start=observed,
+            end=observed + timedelta(days=1),
+        )
+        assert len(samples) == 1
+        assert stats is not None
+
+    def test_query_with_only_invalid_chunks_returns_empty(self, storage_dir: Path) -> None:
+        day_dir = storage_dir / "year=2026/month=01/day=01"
+        day_dir.mkdir(parents=True)
+        (day_dir / "chunk_bad.parquet").write_bytes(b"PAR1")
+
+        pq = ParquetQuery(storage_dir)
+        assert pq.count() == 0
+        assert pq.latest() == []
+        assert pq.range_with_stats(hours=24) == ([], None)
 
 
 class TestRetention:
