@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-28, release v0.2.14 = 8c42545; Pi runs 0.2.14 / 8c42545... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, browser-derived gas quality states/trends, and chart gap breaks; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-28, release v0.2.15 = 27bacc7; Pi runs 0.2.15 / 27bacc7... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, browser-derived gas quality states/trends, chart gap breaks, and UUID Parquet chunk names that prevent restart overwrite; service active, dashboard 200. Historical 03:31:56-05:15:36 UTC data loss remains and is not recoverable from available backups.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -18,6 +18,8 @@
 # - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
 # - Gotcha - project_stingray - Cold History Limit Truncation (note:sv0wj6311idkf1qe927x) — no-since requests must use full-window downsampling, not oldest-first raw limit
 # - Gotcha - project_stingray - History Gap Interpolation (note:qbmrk9rwvambmm8xrtdh) — break chart line/fill at real data gaps, all metrics and ranges; released and deployed in v0.2.14
+# - Gotcha - project_stingray - Parquet Chunk Counter Resets and Overwrites History (note:vmv9ptcanqzpz0lgyjvt) — restart overwrote numbered chunks; fixed in v0.2.15 with UUID names
+# - Decision - project_stingray - Parquet Storage - UUID Chunk Filenames (note:b4970x3c267e1jgncbgm)
 # - Gotcha - project_stingray - Summary Metric Key Mismatch and Last Run Retention (note:ymcpawg06he4zfab6njz) — API min/max vs UI minimum/maximum; latest.json fallback
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 # - Decision - project_stingray - Dashboard Visual Direction Dark Instrument Panel (note:2940yg33k09buc8xbras)
@@ -57,6 +59,7 @@
 # - Session - 2026-11-28 - Hourly Summary Min Max and v0.2.12 Release (note:884po6yvpajlbdkask97) [summary min/max, manual-run badge, last-run retention; released and deployed]
 # - Session - 2026-11-28 - Gas Quality Dashboard and v0.2.13 Force Deploy (note:p1ybizgv7gah6f0c6a42) [gas labels/trends released and force-deployed; human visual review pending]
 # - Session - 2026-11-28 - History Gap Chart Fix and v0.2.14 Release (note:twt294eqzir0dik5pfos) [line/fill breaks at real gaps; released and deployed by scheduled poll; human visual review pending]
+# - Session - 2026-11-28 - Parquet Overwrite Fix and v0.2.15 Release (note:1tsad2nzkcp6ii94x63r) [UUID chunk fix, backup, verified release, scheduled deploy; historical gap unrecoverable; human visual review pending]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
@@ -105,3 +108,5 @@
 # RELEASE POLL SCHEDULE CHANGED 2026-11-27: deploy timer OnCalendar=*:15,45 (repo deploy/stingray-deploy.timer). Chosen so release restarts never overlap the :00 hourly summary/Telegram job; maximum lag stays 30 min. Pi-side unit install needs interactive sudo (ravik has no passwordless sudo for unit edits). # codemap note:1k3u6dipbo4smx73jzz9
 # RELEASE v0.2.3 (d6c37a4) 2026-11-27: fixes displayed version drift; dry run 45990079883 and release 45990572782 passed; tag/assets verified; Pi auto-deployed at 17:15 IST with no force; dist-info and TFT footer both show v0.2.3; CPU metric still live. Session: note:nngavfdn0isrckzs11uz.
 # RELEASE v0.2.4 (c0e9bc6) 2026-11-27: keyless Open-Meteo outdoor weather/AQI context in hourly summaries; dry run 45997052501 and release 45997649598 passed; assets checksum-verified, dist-info VERSION=0.2.4; Pi auto-deployed at 18:20:14 IST with no force (checksum OK, current -> releases/0.2.4, dist-info and VERSION 0.2.4, service active, hardware health clean, pi:cpu_temperature_c live); forced refresh at 12:57 UTC captured Open-Meteo context, saved summary and sent Telegram with one attributed footer line; Ollama hit the 300s timeout under Pi load ~25 and deterministic fallback was used (gotcha note:0wabhzcbg4mr15xfmrz3). Session: note:q2py0ki7gxcqe9h5sf32. Codemap: note:bsk7ps9p9c7tx2g3orv3.
+
+# RELEASE v0.2.15 (27bacc7) 2026-11-28: fixed silent Parquet chunk overwrite across restarts by switching to UUID chunk filenames; backed up live store before editing; CI 46112947623, dry run 46113014464, release 46113383232 all green; published asset checksum verified; scheduled poll deployed at 11:45:14 IST with no force; Pi VERSION/BUILD_SHA/service/dashboard/timers verified; new chunks UUID-named, zero legacy numbered chunks modified after deploy. Session: note:1tsad2nzkcp6ii94x63r. Gotcha: note:vmv9ptcanqzpz0lgyjvt. Decision: note:b4970x3c267e1jgncbgm.
