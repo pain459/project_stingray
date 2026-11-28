@@ -88,13 +88,22 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
     scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
     assert scripts == [
         "js/store.js?v=2",
-        "js/chart.js?v=8",
+        "js/chart.js?v=9",
         "js/history.js?v=13",
         "js/live.js?v=14",
         "js/summary.js?v=12",
         "js/deploy.js?v=3",
         "js/app.js?v=12",
     ]
+
+
+def test_chart_breaks_line_at_data_gaps() -> None:
+    chart = _js("chart.js")
+    assert "const GAP_FACTOR = 4" in chart
+    assert "const MIN_GAP_SECONDS = 60" in chart
+    assert "median * GAP_FACTOR" in chart
+    assert "pts.slice(start, i)" in chart
+    assert "splitSegments(pts)" in chart
 
 
 def test_deploy_panel_has_read_only_update_check() -> None:

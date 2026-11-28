@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-28, main tip f2c74f2 / tag v0.2.12. Pi runs 0.2.12 / f2c74f2... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, and summary min/max plus manual-run source; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-28, main tip dcb6ac0 / unreleased 0.2.14. Pi runs 0.2.13 / 6cd9c2e... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, and browser-derived gas quality states/trends; service active, dashboard 200. Main also has the undeployed chart gap-break fix. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -17,6 +17,7 @@
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 # - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
 # - Gotcha - project_stingray - Cold History Limit Truncation (note:sv0wj6311idkf1qe927x) — no-since requests must use full-window downsampling, not oldest-first raw limit
+# - Gotcha - project_stingray - History Gap Interpolation (note:qbmrk9rwvambmm8xrtdh) — break chart line/fill at real data gaps, all metrics and ranges; local fix pending release
 # - Gotcha - project_stingray - Summary Metric Key Mismatch and Last Run Retention (note:ymcpawg06he4zfab6njz) — API min/max vs UI minimum/maximum; latest.json fallback
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 # - Decision - project_stingray - Dashboard Visual Direction Dark Instrument Panel (note:2940yg33k09buc8xbras)
@@ -54,6 +55,7 @@
 # - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored; blog notes persisted]
 # - Session - 2026-11-28 - Cold History Window Fix and v0.2.11 Release (note:sw4lmwu10tm0mobqvxcg) [cold 6 h history fixed, released and deployed]
 # - Session - 2026-11-28 - Hourly Summary Min Max and v0.2.12 Release (note:884po6yvpajlbdkask97) [summary min/max, manual-run badge, last-run retention; released and deployed]
+# - Session - 2026-11-28 - Gas Quality Dashboard and v0.2.13 Force Deploy (note:p1ybizgv7gah6f0c6a42) [gas labels/trends released and force-deployed; human visual review pending]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]

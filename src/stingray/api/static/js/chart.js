@@ -71,6 +71,31 @@
     return vis;
   }
 
+  // A real data gap must not be rendered as a straight interpolation.
+  // Normal downsampling leaves short uneven gaps, so scale the break
+  // threshold to the series' own median cadence with a 60 s floor.
+  const GAP_FACTOR = 4;
+  const MIN_GAP_SECONDS = 60;
+
+  function splitSegments(pts) {
+    if (pts.length < 3) return [pts];
+    const gaps = [];
+    for (let i = 1; i < pts.length; i++) gaps.push(pts[i][0] - pts[i - 1][0]);
+    const sorted = gaps.slice().sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.max(MIN_GAP_SECONDS, median * GAP_FACTOR);
+    const segments = [];
+    let start = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i][0] - pts[i - 1][0] > threshold) {
+        segments.push(pts.slice(start, i));
+        start = i;
+      }
+    }
+    segments.push(pts.slice(start));
+    return segments;
+  }
+
   function drawHistory() {
     const H = window.HIST;
     const canvas = $('historyChart');
@@ -147,23 +172,30 @@
       ctx.fillText(fmtTime(tx, H.hours), x, h - padB + 6 * dpr);
     }
 
-    // Line
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-      const x = padL + plotW * ((p[0] - t0) / total);
-      const y = padT + plotH * (1 - (p[1] - vMin) / (vMax - vMin));
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
+    // Line and fill, split at data gaps so an outage is not drawn as a
+    // straight segment between the last old point and the first new point.
+    const segments = splitSegments(pts);
     ctx.strokeStyle = cssVar('--accent');
-    ctx.lineWidth = 2 * dpr;
-    ctx.stroke();
-
-    // Fill under the line
-    ctx.lineTo(padL + plotW, h - padB);
-    ctx.lineTo(padL, padT + plotH);
-    ctx.closePath();
     ctx.fillStyle = cssVar('--accent') + '18';
-    ctx.fill();
+    ctx.lineWidth = 2 * dpr;
+    for (const seg of segments) {
+      ctx.beginPath();
+      seg.forEach((p, i) => {
+        const x = padL + plotW * ((p[0] - t0) / total);
+        const y = padT + plotH * (1 - (p[1] - vMin) / (vMax - vMin));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      if (seg.length > 1) {
+        const first = seg[0], last = seg[seg.length - 1];
+        const xFirst = padL + plotW * ((first[0] - t0) / total);
+        const xLast = padL + plotW * ((last[0] - t0) / total);
+        ctx.lineTo(xLast, h - padB);
+        ctx.lineTo(xFirst, h - padB);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
 
     // Drag selection rectangle
     if (H.dragging) {
