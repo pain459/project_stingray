@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-28, main tip 879f63a / tag v0.2.11. Pi runs 0.2.11 / 879f63a... with local browser clock, double-buffered chart, flat neon logo, and full-window cold history; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-28, main tip f2c74f2 / tag v0.2.12. Pi runs 0.2.12 / f2c74f2... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, and summary min/max plus manual-run source; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -36,6 +36,7 @@
 # - Code Map - project_stingray - Sensor Metrics Inventory and Utilization (note:44ovcy8ota8bvdlxxf88)
 # - Code Map - project_stingray - Pi CPU Temperature Telemetry (note:1k3u6dipbo4smx73jzz9)
 # - Code Map - project_stingray - SHT4x SGP41 Gas Acquisition (note:zur67oe676tzxo5015yf)
+# - Code Map - project_stingray - Gas Quality Live Rendering (note:rpl2bcpyo95br2qd5xtj) — quality labels and 1 h trends derived in live.js
 # - Code Map - project_stingray - SHT45 Driver (note:zr1sm26kwprguqo69w6a)
 # - Code Map - project_stingray - SPS30 Driver (note:gqbf2r8u9enjtznd3tke)
 # - Code Map - project_stingray - SCD4X Driver (note:7arty6f93nuk275efbwy)
@@ -52,6 +53,7 @@
 # - Session - 2026-11-27 - Release Control Refresh and v0.2.8 (note:t5t9gduqw9y023i2q1tl) [read-only GitHub update check; deployed early]
 # - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored; blog notes persisted]
 # - Session - 2026-11-28 - Cold History Window Fix and v0.2.11 Release (note:sw4lmwu10tm0mobqvxcg) [cold 6 h history fixed, released and deployed]
+# - Session - 2026-11-28 - Hourly Summary Min Max and v0.2.12 Release (note:884po6yvpajlbdkask97) [summary min/max, manual-run badge, last-run retention; released and deployed]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]

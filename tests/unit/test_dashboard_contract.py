@@ -62,6 +62,27 @@ def test_summary_widget_renders_api_min_max_and_labels_run_source() -> None:
     assert ".summary-meta-source.manual" in css
 
 
+def test_live_renders_gas_quality_states_and_trends() -> None:
+    live = _js("live.js")
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    css = (_STATIC / "css/main.css").read_text(encoding="utf-8")
+
+    for element_id in ("vocstate", "vocstate2", "noxstate", "voctrend", "noxtrend"):
+        assert f'id="{element_id}"' in html
+    assert "qualityLabel(voc, 'voc_index')" in live
+    assert "qualityLabel(nox, 'nox_index')" in live
+    assert "setQuality('vocstate', vocQuality)" in live
+    assert "setQuality('vocstate2', vocQuality)" in live
+    assert "setQuality('noxstate', noxQuality)" in live
+    assert "window.DP.history('voc_index', TREND_HOURS)" in live
+    assert "window.DP.history('nox_index', TREND_HOURS)" in live
+    assert "setText('voctrend', trendText('voc_index'" in live
+    assert "setText('noxtrend', trendText('nox_index'" in live
+    assert ".unit.quality--good" in css
+    assert ".unit.quality--warn" in css
+    assert ".unit.quality--bad" in css
+
+
 def test_script_tags_are_ordered_and_cache_bumped() -> None:
     html = (_STATIC / "index.html").read_text(encoding="utf-8")
     scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
@@ -69,7 +90,7 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
         "js/store.js?v=2",
         "js/chart.js?v=8",
         "js/history.js?v=13",
-        "js/live.js?v=13",
+        "js/live.js?v=14",
         "js/summary.js?v=12",
         "js/deploy.js?v=3",
         "js/app.js?v=12",

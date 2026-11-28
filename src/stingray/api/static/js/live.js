@@ -10,6 +10,20 @@
 
   const $ = id => document.getElementById(id);
   let lastRevision = -1;
+  let currentGasPoints = null;
+  let trendLoadStarted = false;
+
+  const TREND_HOURS = 1;
+  const TREND_SAMPLE_WINDOW = 5;
+  const TREND_REFRESH_MS = 300000;
+  const QUALITY_BREAKPOINTS = {
+    voc_index: [150, 250, 400],
+    nox_index: [20, 150, 300]
+  };
+  const TREND_META = {
+    voc_index: { id: 'voctrend', deadband: 2 },
+    nox_index: { id: 'noxtrend', deadband: 0.5 }
+  };
 
   function setText(id, value) {
     const el = $(id);
@@ -70,6 +84,80 @@
     }, 0);
   }
 
+  function qualityLabel(point, metric) {
+    if (!point || point.value == null || isNaN(point.value)) return null;
+    const value = Number(point.value);
+    const bands = QUALITY_BREAKPOINTS[metric];
+    if (!bands) return null;
+    if (value <= bands[0]) return { label: 'Good', tone: 'good' };
+    if (value <= bands[1]) return { label: 'Fair', tone: 'warn' };
+    if (value <= bands[2]) return { label: 'Poor', tone: 'warn' };
+    return { label: 'Bad', tone: 'bad' };
+  }
+
+  function setQuality(id, quality) {
+    const el = $(id);
+    if (!el) return;
+    const text = quality ? quality.label : '--';
+    const className = quality ? 'unit quality--' + quality.tone : 'unit';
+    if (el.textContent !== text) el.textContent = text;
+    if (el.className !== className) el.className = className;
+  }
+
+  function mean(values) {
+    let total = 0;
+    for (let i = 0; i < values.length; i++) total += values[i];
+    return total / values.length;
+  }
+
+  function trendText(metric, point) {
+    const meta = TREND_META[metric];
+    if (!meta) return '--';
+    const entry = window.DP && window.DP.cachedHistory
+      ? window.DP.cachedHistory(metric, TREND_HOURS)
+      : null;
+    const values = ((entry && entry.samples) || [])
+      .map(function (row) { return Number(row[1]); })
+      .filter(function (value) { return Number.isFinite(value); });
+    if (point && point.value != null) {
+      const liveValue = Number(point.value);
+      if (Number.isFinite(liveValue)) values.push(liveValue);
+    }
+    if (values.length < TREND_SAMPLE_WINDOW * 2) return '--';
+    const count = Math.min(TREND_SAMPLE_WINDOW, Math.floor(values.length / 2));
+    const early = mean(values.slice(0, count));
+    const late = mean(values.slice(-count));
+    const delta = late - early;
+    if (!Number.isFinite(delta)) return '--';
+    const pct = early > 0 ? (delta / early) * 100 : null;
+    const rising = delta > meta.deadband;
+    const falling = delta < -meta.deadband;
+    const arrow = rising ? '↗' : falling ? '↘' : '→';
+    const direction = rising ? 'Rising' : falling ? 'Falling' : 'Steady';
+    const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
+    const magnitude = Math.abs(delta);
+    const magnitudeText = magnitude.toFixed(magnitude < 10 ? 1 : 0);
+    const deltaText = sign + magnitudeText;
+    const pointUnit = Math.abs(Number(magnitudeText)) === 1 ? ' pt' : ' pts';
+    const pctText = pct == null ? '' : ' (' + (pct > 0 ? '+' : '') + pct.toFixed(0) + '%)';
+    return arrow + ' ' + direction + ' ' + deltaText + pointUnit + pctText + ' · 1 h';
+  }
+
+  function renderTrends(points) {
+    const gas = points || currentGasPoints || {};
+    setText('voctrend', trendText('voc_index', gas['sgp41:voc_index']));
+    setText('noxtrend', trendText('nox_index', gas['sgp41:nox_index']));
+  }
+
+  function refreshTrends() {
+    if (!window.DP || !window.DP.history || document.hidden) return;
+    trendLoadStarted = true;
+    Promise.all([
+      window.DP.history('voc_index', TREND_HOURS).catch(function () { return null; }),
+      window.DP.history('nox_index', TREND_HOURS).catch(function () { return null; })
+    ]).then(function () { renderTrends(currentGasPoints); });
+  }
+
   function renderLatest(payload) {
     const points = payload.datapoints || payload.live || [];
     const lm = {};
@@ -86,11 +174,19 @@
     setMetricText('hum', lm['sht45:relative_humidity_percent'], 1);
 
     const voc = lm['sgp41:voc_index'];
+    const nox = lm['sgp41:nox_index'];
+    currentGasPoints = { 'sgp41:voc_index': voc, 'sgp41:nox_index': nox };
+    const vocQuality = qualityLabel(voc, 'voc_index');
+    const noxQuality = qualityLabel(nox, 'nox_index');
     setMetricText('voc', voc, 0);
     setMetricText('voc2', voc, 0);
-    setMetricText('nox', lm['sgp41:nox_index'], 0);
+    setQuality('vocstate', vocQuality);
+    setQuality('vocstate2', vocQuality);
+    setMetricText('nox', nox, 0);
+    setQuality('noxstate', noxQuality);
     setMetricText('vocraw', lm['sgp41:voc_raw'], 0);
     setMetricText('noxraw', lm['sgp41:nox_raw'], 0);
+    renderTrends(currentGasPoints);
 
     setMetricText('n1', lm['sps30:pm1_num_m3'], 1);
     setMetricText('n25', lm['sps30:pm2_5_num_m3'], 1);
@@ -132,6 +228,7 @@
     lastRevision = state.revision;
     renderLatest(state.latest);
     renderSystem(state.latest.system || {});
+    if (!trendLoadStarted) refreshTrends();
   }
 
   // Kept for callers that still expect the old function names.
@@ -144,4 +241,8 @@
   window.fetchSystem = fetchSystem;
 
   if (window.DP) window.DP.subscribe(render);
+  window.setInterval(refreshTrends, TREND_REFRESH_MS);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) refreshTrends();
+  });
 })();

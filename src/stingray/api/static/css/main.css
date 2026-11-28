@@ -125,6 +125,9 @@ body{
 .card-readout{display:flex;align-items:baseline;gap:7px;margin-top:9px}
 .value{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:27px;font-weight:600;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
 .unit{font-size:12px;color:var(--sec)}
+.unit.quality--good{color:var(--good)}
+.unit.quality--warn{color:var(--warn)}
+.unit.quality--bad{color:var(--bad)}
 
 /* Sections and rows */
 .section h2,.panel-head h2{margin:0;font-size:17px;font-weight:620;letter-spacing:-.01em}
