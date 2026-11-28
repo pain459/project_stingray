@@ -139,7 +139,12 @@ class SummaryRefresher:
             if facts.sample_count == 0:
                 log.warning("on-demand summary skipped: no sensor samples in window")
                 return
-            summary = generate(facts, self._config, model=self._config.summary.model)
+            summary = generate(
+                facts,
+                self._config,
+                model=self._config.summary.model,
+                source="manual",
+            )
             json_path, _ = SummaryStore(self._config.summary.path).save(summary)
             log.info("on-demand summary saved: %s", json_path)
             self._send_telegram(summary)

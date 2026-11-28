@@ -57,13 +57,20 @@ class SummaryStore:
             tmp.unlink(missing_ok=True)
 
     def latest(self) -> dict[str, Any] | None:
-        """Return the most recently generated summary, if any."""
+        """Return the most recently generated summary, if any.
+
+        ``latest.json`` is the fast path. If it is missing or damaged, fall
+        back to the newest dated document so the last run stays available.
+        """
         path = self._base / "latest.json"
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return None
-        return payload if isinstance(payload, dict) else None
+            payload = None
+        if isinstance(payload, dict):
+            return payload
+        recovered = self.list(limit=1)
+        return recovered[0] if recovered else None
 
     def list(self, limit: int = 10) -> list[dict[str, Any]]:
         """Return summaries newest-first, capped at ``limit``."""

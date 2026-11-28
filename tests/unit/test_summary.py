@@ -556,6 +556,34 @@ class TestStore:
         assert store.latest()["headline"] == "Steady"
         assert store.list(limit=5)[0]["headline"] == "Steady"
 
+    def test_run_source_is_persisted(self, tmp_path: Path) -> None:
+        facts = _facts()
+        findings = derive_findings(facts, ThresholdsConfig())
+        hourly = make_summary(facts, findings, model="test-model", payload=None)
+        manual = make_summary(facts, findings, model="test-model", payload=None, source="manual")
+        assert hourly.to_jsonable()["source"] == "hourly"
+        assert manual.to_jsonable()["source"] == "manual"
+
+        SummaryStore(tmp_path).save(manual)
+        assert SummaryStore(tmp_path).latest()["source"] == "manual"
+
+    def test_latest_recovers_from_dated_summary(self, tmp_path: Path) -> None:
+        facts = _facts()
+        findings = derive_findings(facts, ThresholdsConfig())
+        summary = make_summary(
+            facts,
+            findings,
+            model="test-model",
+            payload={"headline": "Recovered", "summary": "All good."},
+        )
+        store = SummaryStore(tmp_path)
+        store.save(summary)
+        (tmp_path / "latest.json").unlink()
+
+        latest = store.latest()
+        assert latest is not None
+        assert latest["headline"] == "Recovered"
+
     def test_comparison_is_persisted(self, tmp_path: Path) -> None:
         facts = _facts()
         pm = facts.metrics["pm2_5_ug_m3"]

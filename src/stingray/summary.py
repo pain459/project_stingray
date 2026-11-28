@@ -167,6 +167,7 @@ class Summary:
     fallback_reason: str = ""
     model_metrics: dict[str, Any] = field(default_factory=dict)
     outdoor: OutdoorContext = field(default_factory=OutdoorContext.empty)
+    source: str = "hourly"
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -181,6 +182,7 @@ class Summary:
             "generated_at": self.generated_at.isoformat(),
             "fallback_reason": self.fallback_reason,
             "model_metrics": dict(self.model_metrics),
+            "source": self.source,
         }
 
 
@@ -547,6 +549,7 @@ def make_summary(
     model_error: str = "",
     model_metrics: dict[str, Any] | None = None,
     outdoor: OutdoorContext | None = None,
+    source: str = "hourly",
 ) -> Summary:
     """Create the final Summary, falling back safely if needed."""
     headline, text, reason = "", "", model_error
@@ -567,6 +570,7 @@ def make_summary(
         fallback_reason=reason,
         model_metrics=dict(model_metrics or {}),
         outdoor=outdoor if outdoor is not None else OutdoorContext.empty(),
+        source=source,
     )
 
 

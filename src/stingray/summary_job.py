@@ -181,6 +181,7 @@ def generate(
     *,
     model: str,
     outdoor: OutdoorContext | None = None,
+    source: str = "hourly",
 ) -> Any:
     """Run the rules and the model, returning a validated Summary."""
     if outdoor is None:
@@ -211,6 +212,7 @@ def generate(
         model_error=error,
         model_metrics=metrics,
         outdoor=outdoor,
+        source=source,
     )
 
 

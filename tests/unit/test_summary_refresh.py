@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from datetime import UTC, datetime
 from http.client import HTTPConnection
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +14,7 @@ from stingray.api.server import ApiState, create_api_server
 from stingray.core.config import AppConfig
 from stingray.summary_job import send_telegram
 from stingray.summary_refresh import SummaryRefresher
+from stingray.summary_store import SummaryStore
 
 
 def _config(tmp_path: Path) -> AppConfig:
@@ -67,6 +69,40 @@ class TestSummaryRefresher:
         assert state["busy"] is False
         assert state["cooldown_remaining_seconds"] == 0
         assert state["next_allowed_at"] is None
+
+    def test_manual_run_marks_summary_source(self, tmp_path: Path) -> None:
+        config = _config(tmp_path)
+        refresher = SummaryRefresher(config)
+        seen: dict[str, object] = {}
+
+        class _Summary:
+            generated_at = datetime.now(UTC)
+
+            def to_jsonable(self) -> dict[str, object]:
+                return {
+                    "headline": "Manual",
+                    "summary": "Generated on demand.",
+                    "generated_at": self.generated_at.isoformat(),
+                    "source": "manual",
+                }
+
+        def _generate(facts: object, cfg: object, *, model: str, source: str = "hourly") -> object:
+            seen["source"] = source
+            return _Summary()
+
+        with (
+            patch("stingray.summary_refresh.aggregate_facts") as facts_cls,
+            patch("stingray.summary_refresh.generate", side_effect=_generate),
+            patch("stingray.summary_store.telegram_text", return_value=""),
+        ):
+            facts_cls.return_value.sample_count = 1
+            refresher._run_lock.acquire()  # noqa: SLF001 - worker normally starts under lock
+            refresher._run()  # noqa: SLF001 - test drives the worker directly
+
+        assert seen["source"] == "manual"
+        latest = SummaryStore(config.summary.path).latest()
+        assert latest is not None
+        assert latest["source"] == "manual"
 
 
 class TestRefreshEndpoint:

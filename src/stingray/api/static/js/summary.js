@@ -22,6 +22,7 @@
   let busy = false;
   let pollTimer = null;
   let lastRevision = -1;
+  let lastSummary = null;
 
   function formatTime(iso) {
     if (!iso) return 'unknown';
@@ -30,6 +31,7 @@
   }
 
   function fmt(value, digits) {
+    if (value === null || value === undefined || value === '') return '--';
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(digits) : '--';
   }
@@ -44,6 +46,21 @@
   function setStatus(message) {
     const el = $('summaryCooldown');
     if (el) el.textContent = message || '';
+  }
+
+  function setMeta(timeText, sourceText, modelText) {
+    const generated = $('summaryGenerated');
+    const source = $('summarySource');
+    const model = $('summaryModel');
+    if (generated && source && model) {
+      if (generated.textContent !== timeText) generated.textContent = timeText;
+      if (source.textContent !== sourceText) source.textContent = sourceText;
+      source.classList.toggle('manual', sourceText === 'Manual run');
+      if (model.textContent !== modelText) model.textContent = modelText;
+      return;
+    }
+    const meta = $('summaryMeta');
+    if (meta) meta.textContent = [timeText, sourceText, modelText].filter(Boolean).join(' · ');
   }
 
   function updateButton() {
@@ -104,9 +121,13 @@
       avg.className = 'summary-metric-avg';
       avg.textContent = `${fmt(m.avg, digits)} ${m.unit || ''}`.trim();
 
+      // The API serializes MetricFacts as min/max; older files used
+      // minimum/maximum, so accept both while rendering either shape.
+      const low = m.min != null ? m.min : m.minimum;
+      const high = m.max != null ? m.max : m.maximum;
       const range = document.createElement('div');
       range.className = 'summary-metric-range';
-      range.textContent = `min ${fmt(m.minimum, digits)} · max ${fmt(m.maximum, digits)}`;
+      range.textContent = `min ${fmt(low, digits)} · max ${fmt(high, digits)}`;
       card.append(label, avg, range);
 
       if (m.change_vs_previous_pct != null) {
@@ -150,8 +171,11 @@
     const actions = $('summaryActions');
     if (!meta || !headline || !text || !notes || !actions) return;
 
+    // Keep the last run visible while a new one is generating, or if a
+    // snapshot briefly has no summary. Only a real new run replaces it.
+    if (!summary) summary = lastSummary;
     if (!summary) {
-      meta.textContent = 'Waiting for the first hourly summary...';
+      setMeta('Waiting for the first hourly summary...', '', '');
       headline.textContent = '--';
       text.textContent = 'No summary has been generated yet.';
       clear($('summaryValues'));
@@ -160,10 +184,12 @@
       clear(actions);
       return;
     }
+    lastSummary = summary;
 
     const model = summary.model || 'unknown model';
     const suffix = summary.model_used ? '' : ' (deterministic fallback)';
-    meta.textContent = `${formatTime(summary.generated_at)} · ${model}${suffix}`;
+    const source = summary.source === 'manual' ? 'Manual run' : 'Hourly run';
+    setMeta(`Generated ${formatTime(summary.generated_at)}`, source, `Model: ${model}${suffix}`);
     headline.textContent = summary.headline || '--';
     text.textContent = summary.text || '';
 

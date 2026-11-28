@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-27, main tip 81af536 at wiring-reference save / functional tag v0.2.10 at ccd8f2a; owner-confirmed 5V as-built correction recorded for SCD4x and combined SHT4x/SGP4x. Pi runs 0.2.10 / ccd8f2a... with local browser clock, double-buffered chart, flat neon logo, and logo HTTP 200; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-28, main tip 879f63a / tag v0.2.11. Pi runs 0.2.11 / 879f63a... with local browser clock, double-buffered chart, flat neon logo, and full-window cold history; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -16,6 +16,8 @@
 # - Gotcha - project_stingray - Tiny Ollama Prompt and Validation Traps (note:n60mxliem3ndy0gbfxzl)
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 # - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
+# - Gotcha - project_stingray - Cold History Limit Truncation (note:sv0wj6311idkf1qe927x) — no-since requests must use full-window downsampling, not oldest-first raw limit
+# - Gotcha - project_stingray - Summary Metric Key Mismatch and Last Run Retention (note:ymcpawg06he4zfab6njz) — API min/max vs UI minimum/maximum; latest.json fallback
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 # - Decision - project_stingray - Dashboard Visual Direction Dark Instrument Panel (note:2940yg33k09buc8xbras)
 # - Gotcha - project_stingray - Chart CSS Variables Must Be Six-Digit Hex (note:q8p1okl1mdlbaefqxbwp)
@@ -38,6 +40,7 @@
 # - Code Map - project_stingray - SPS30 Driver (note:gqbf2r8u9enjtznd3tke)
 # - Code Map - project_stingray - SCD4X Driver (note:7arty6f93nuk275efbwy)
 # - Code Map - project_stingray - Hourly Local LLM Summary (note:bsk7ps9p9c7tx2g3orv3)
+# - Code Map - project_stingray - Hourly Summary Run Source and Last-Run Rendering (note:k0ol4cffixwntlda70kk) — manual/hourly source stamping, min/max render fix, last-run retention
 #
 # Sessions
 # - Session - 2026-11-26 - SHT4x and SGP41 Gas Sensor Bring-up (note:3qjpgmv87ldsmi977nbe)
@@ -48,6 +51,7 @@
 # - Session - 2026-11-27 - Dashboard UI Modernization and v0.2.7 Release (note:9uks6aa1hg2tsleff52y) [early deploy before timer; human visual review pending]
 # - Session - 2026-11-27 - Release Control Refresh and v0.2.8 (note:t5t9gduqw9y023i2q1tl) [read-only GitHub update check; deployed early]
 # - Session - 2026-11-27 - Local Clock, Seamless Refresh, and Neon Logo (note:26oodb3hfzoc1eopg99t) [v0.2.10 deployed; logo restored; blog notes persisted]
+# - Session - 2026-11-28 - Cold History Window Fix and v0.2.11 Release (note:sw4lmwu10tm0mobqvxcg) [cold 6 h history fixed, released and deployed]
 # - Session - 2026-11-27 - Hardware Wiring Reference Persistence (note:awawrbgwfl9fk7pcbpyr) [owner-confirmed 5V SCD4x + combined board, not independently audited]
 # - Session - 2026-11-27 - v0.2.3 version metadata rollout (note:nngavfdn0isrckzs11uz)
 # - Session - 2026-11-27 - Release poll schedule to 15 and 45 (note:lggxfhjuu8rec56m3u1n) [verified]
@@ -72,6 +76,7 @@
 # (10) HISTORY_URL already contains ?mode=history: append &metric=..., never ?metric=..., or the server returns 400 unknown mode (gotcha note:qj5im2u5bx1zns1jpvzc; fixed at 43aae91, released and force deployed as v0.2.6 / ab9e53a).
 # (11) A new static asset URL prefix must be routed in ApiHandler/do_GET; adding the file and MIME type is not enough. v0.2.9 logo 404 fixed in v0.2.10 by routing /assets/ to _serve_static.
 # (12) DFR0918 uses BCM labels; never confuse TFT SDI/SDA (SPI MOSI GPIO10) with sensor SDA (I2C GPIO2). Owner-confirmed as-built: SCD4x VCC and combined SHT4x/SGP4x VCC/VIN are on 5V and working; exact 3V3 roles remain open. Detailed reference: note:gzwrzkm1a3gxcfpkavkg.
+# (13) A no-since history request is a cold/full window: use range_with_stats bucket downsampling. Raw range(limit=900) returns oldest rows, so live-merge draws a straight gap (fixed in v0.2.11; gotcha note:sv0wj6311idkf1qe927x).
 #
 # Status: 30-minute gas test passed (all four sensors READY, no errors); TPS and
 # network info live on the Pi (tps_um ≈ 0.6 µm, wlan0 IP/RSSI). Data-provenance audit at

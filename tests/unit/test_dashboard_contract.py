@@ -46,6 +46,22 @@ def test_slow_state_uses_snapshot_subscription() -> None:
     assert "/api/datapoints" not in deploy
 
 
+def test_summary_widget_renders_api_min_max_and_labels_run_source() -> None:
+    summary = _js("summary.js")
+    html = (_STATIC / "index.html").read_text(encoding="utf-8")
+    css = (_STATIC / "css/main.css").read_text(encoding="utf-8")
+
+    assert "m.min" in summary
+    assert "m.max" in summary
+    assert "value === null || value === undefined" in summary
+    assert "summary.source === 'manual' ? 'Manual run' : 'Hourly run'" in summary
+    assert "if (!summary) summary = lastSummary" in summary
+
+    for element_id in ("summaryMeta", "summaryGenerated", "summarySource", "summaryModel"):
+        assert f'id="{element_id}"' in html
+    assert ".summary-meta-source.manual" in css
+
+
 def test_script_tags_are_ordered_and_cache_bumped() -> None:
     html = (_STATIC / "index.html").read_text(encoding="utf-8")
     scripts = [line.split('"')[1] for line in html.splitlines() if '<script src="js/' in line]
@@ -54,7 +70,7 @@ def test_script_tags_are_ordered_and_cache_bumped() -> None:
         "js/chart.js?v=8",
         "js/history.js?v=13",
         "js/live.js?v=13",
-        "js/summary.js?v=11",
+        "js/summary.js?v=12",
         "js/deploy.js?v=3",
         "js/app.js?v=12",
     ]

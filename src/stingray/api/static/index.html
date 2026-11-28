@@ -142,7 +142,11 @@
       <button type="button" id="summaryRefresh" class="summary-refresh">Generate now</button>
     </div>
   </div>
-  <div class="section-note" id="summaryMeta">Waiting for the first hourly summary...</div>
+  <div class="summary-meta" id="summaryMeta">
+    <span class="summary-meta-time" id="summaryGenerated">Waiting for the first hourly summary...</span>
+    <span class="summary-meta-source" id="summarySource"></span>
+    <span class="summary-meta-model" id="summaryModel"></span>
+  </div>
   <div class="summary-headline" id="summaryHeadline">--</div>
   <div class="summary-text" id="summaryText">No summary has been generated yet.</div>
   <div class="summary-values" id="summaryValues"></div>
@@ -203,7 +207,7 @@
 <script src="js/chart.js?v=8"></script>
 <script src="js/history.js?v=13"></script>
 <script src="js/live.js?v=13"></script>
-<script src="js/summary.js?v=11"></script>
+<script src="js/summary.js?v=12"></script>
 <script src="js/deploy.js?v=3"></script>
 <script src="js/app.js?v=12"></script>
 </body>
