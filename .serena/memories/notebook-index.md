@@ -1,5 +1,5 @@
 # Open Notebook hot-set index (project_stingray)
-# Updated 2026-11-28, main tip dcb6ac0 / unreleased 0.2.14. Pi runs 0.2.13 / 6cd9c2e... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, and browser-derived gas quality states/trends; service active, dashboard 200. Main also has the undeployed chart gap-break fix. Storage = DuckDB + Parquet on the SSD.
+# Updated 2026-11-28, release v0.2.14 = 8c42545; Pi runs 0.2.14 / 8c42545... with local browser clock, double-buffered chart, flat neon logo, full-window cold history, summary min/max plus manual-run source, browser-derived gas quality states/trends, and chart gap breaks; service active, dashboard 200. Storage = DuckDB + Parquet on the SSD.
 # Dashboard live on Pi: http://192.168.68.53:8081/ (port 8081, hardware mode, genuine data).
 # All four sensors online: SHT45, SCD4X, SGP41, SPS30 on /dev/i2c-1.
 # Pi host telemetry enabled as pi:cpu_temperature_c (30s cadence), separate from ambient temperature. # codemap note:1k3u6dipbo4smx73jzz9
@@ -17,7 +17,7 @@
 # - Gotcha - project_stingray - DuckDB Thread Oversubscription Starves Ollama (note:6refxoy3yixwuqrczfjs)
 # - Gotcha - project_stingray - Release Deployment Cutover Traps (note:m3tllw7y4q3p9po7imzm)
 # - Gotcha - project_stingray - Cold History Limit Truncation (note:sv0wj6311idkf1qe927x) — no-since requests must use full-window downsampling, not oldest-first raw limit
-# - Gotcha - project_stingray - History Gap Interpolation (note:qbmrk9rwvambmm8xrtdh) — break chart line/fill at real data gaps, all metrics and ranges; local fix pending release
+# - Gotcha - project_stingray - History Gap Interpolation (note:qbmrk9rwvambmm8xrtdh) — break chart line/fill at real data gaps, all metrics and ranges; released and deployed in v0.2.14
 # - Gotcha - project_stingray - Summary Metric Key Mismatch and Last Run Retention (note:ymcpawg06he4zfab6njz) — API min/max vs UI minimum/maximum; latest.json fallback
 # - Decision - project_stingray - Telegram Compact Curated Card (note:2obwu9q4xwx44rra5z7a)
 # - Decision - project_stingray - Dashboard Visual Direction Dark Instrument Panel (note:2940yg33k09buc8xbras)
