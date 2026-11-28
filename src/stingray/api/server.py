@@ -403,24 +403,37 @@ class ApiHandler(BaseHTTPRequestHandler):
 
         end = datetime.now(UTC)
         start = end - timedelta(hours=hours)
+        pq = ParquetQuery(self.state.db_path)
         if since is not None:
             # The cursor is the last sample already seen: make the next query
             # strictly exclusive so a delta does not redraw that row.
             since_start = datetime.fromtimestamp(since, UTC) + timedelta(microseconds=1)
             if since_start > start:
                 start = since_start
-
-        pq = ParquetQuery(self.state.db_path)
-        rows = pq.range(
-            metric=metric,
-            sensor=sid,
-            start=start,
-            end=end,
-            limit=limit,
-        )
-        self.state.record_query()
-        samples = [[r["observed_epoch"], r["value"]] for r in rows]
-        cursor = samples[-1][0] if samples else (since if since is not None else start.timestamp())
+            rows = pq.range(
+                metric=metric,
+                sensor=sid,
+                start=start,
+                end=end,
+                limit=limit,
+            )
+            self.state.record_query()
+            samples = [[r["observed_epoch"], r["value"]] for r in rows]
+            cursor = samples[-1][0] if samples else since
+            truncated = len(samples) >= limit
+        else:
+            # A cold/full request must cover the whole window. Bounded raw
+            # rows would silently drop the newest data and leave a straight
+            # line from stale history to the merged live sample.
+            samples, stats = pq.range_with_stats(
+                metric=metric,
+                sensor=sid,
+                hours=hours,
+                limit=limit,
+            )
+            self.state.record_query()
+            cursor = samples[-1][0] if samples else start.timestamp()
+            truncated = bool(stats and stats.get("count", 0) > len(samples))
         return {
             "mode": "history",
             "metric": metric,
@@ -429,7 +442,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             "samples": samples,
             "next_cursor": cursor,
             "returned": len(samples),
-            "truncated": len(samples) >= limit,
+            "truncated": truncated,
             "generated_at": datetime.now(UTC).isoformat(),
         }
 

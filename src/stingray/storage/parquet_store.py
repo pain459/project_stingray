@@ -305,17 +305,24 @@ class ParquetQuery:
         sensor: SensorId | None = None,
         hours: int = 24,
         limit: int = 900,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> tuple[list[list[float]], dict[str, Any] | None]:
         """Time-range query with downsampling and stats.
 
         Uses DuckDB's ``time_bucket()`` to downsample to at most ``limit``
         points. Returns (samples, stats) where samples is a list of
-        [epoch, value] pairs and stats is {min, avg, max, count}.
+        [epoch, value] pairs and stats is {min, avg, max, count}. Callers
+        may override the window with explicit ``start``/``end`` bounds.
         """
         con = self._connect()
         try:
-            now = datetime.now(UTC)
-            start = now - timedelta(hours=hours)
+            if start is None or end is None:
+                now = datetime.now(UTC)
+            if start is None:
+                start = now - timedelta(hours=hours)
+            if end is None:
+                end = now
 
             # Choose bucket interval to target ~limit points
             total_seconds = hours * 3600
@@ -347,6 +354,8 @@ class ParquetQuery:
                 params.append(metric)
             sql += " AND observed_epoch >= ?"
             params.append(start.timestamp())
+            sql += " AND observed_epoch <= ?"
+            params.append(end.timestamp())
             sql += """
                 GROUP BY bucket
                 ORDER BY bucket ASC

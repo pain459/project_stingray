@@ -178,6 +178,26 @@ class TestQueries:
         assert stats["max"] <= 9
         assert stats["count"] > 0
 
+    def test_range_with_stats_explicit_window(self, storage_dir: Path) -> None:
+        writer = ParquetWriter(storage_dir)
+        t0 = utc_now() - timedelta(hours=8)
+        for i in range(8):
+            writer.add(_measurement(observed=t0 + timedelta(hours=i), value=float(i)))
+        writer.flush()
+        pq = ParquetQuery(storage_dir)
+        end = t0 + timedelta(hours=6)
+        samples, stats = pq.range_with_stats(
+            hours=24,
+            limit=100,
+            start=t0,
+            end=end,
+        )
+        assert stats is not None
+        assert stats["count"] == 7
+        assert len(samples) >= 6
+        assert samples[-1][0] - samples[0][0] >= timedelta(hours=5).total_seconds()
+        assert samples[-1][0] <= end.timestamp() + 900
+
 
 class TestRetention:
     def test_purge_old_files(self, storage_dir: Path) -> None:
